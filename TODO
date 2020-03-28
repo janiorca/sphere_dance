@@ -1,0 +1,13 @@
+*Fill the screen
+*Fixed to 1 VB
+
+Use real time
+Finish up articel and push
+
+Add simple but more interesting pixel shader that
+-maintains aspect ratio
+-virtual size of one of the axes
+-understand what vars are always available
+
+-full screen version
+-
