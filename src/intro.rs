@@ -8,13 +8,14 @@ use core::mem::{size_of,transmute};
 use core::ops::{Add,Sub,Mul};
 
 pub const num_spheres : usize = 80;
+pub const sphere_extras : usize = 2;
 
 static mut shader_prog : gl::GLuint = 0;
 static mut vertex_array_id : gl::GLuint = 0;
 
 static mut rng : random::Rng = random::Rng{seed: core::num::Wrapping(21431249)};
 
-static mut global_spheres: [ [ [ f32; 4]; num_spheres*2]; 3 ] = [ [ [ 0f32; 4]; num_spheres*2 ]; 3 ];  
+static mut global_spheres: [ [ [ f32; 4]; (num_spheres+sphere_extras)*2]; 3 ] = [ [ [ 0f32; 4]; (num_spheres+sphere_extras)*2 ]; 3 ];  
 
 const SPHERES_CURRENT : usize = 0;
 const SPHERES_TARGET : usize = 1;
@@ -69,11 +70,11 @@ impl Mul<f32> for Vec3{
     }
 }
 
-fn randomize( pixels: &mut [ f32; 512*512 ], rng_terrain : &mut random::Rng, strength: f32 ) {
-    for p in 0..512*512 {
-        pixels[ p ] += ( rng_terrain.next_f32()*strength );
-    }
-}
+// fn randomize( pixels: &mut [ f32; 512*512 ], rng_terrain : &mut random::Rng, strength: f32 ) {
+//     for p in 0..512*512 {
+//         pixels[ p ] += ( rng_terrain.next_f32()*strength );
+//     }
+// }
 
 fn smooth( pixels: &mut [ f32; 512*512 ]) {
     for y in 0..511 {
@@ -91,6 +92,9 @@ static mut gpixels : [ u8; 512*512*4 ] = [ 125; 512*512*4 ];
 static mut src_terrain  : [ f32; 512*512 ] = [ 0.0; 512*512 ];
 static mut tex_buffer_id : gl::GLuint = 0;
 
+#[cfg(feature = "logger")]
+static mut glbl_shader_code : [ u8;25000] = [0; 25000];
+
 pub fn prepare() -> () {
     let mut error_message : [i8;100] = [ 0; 100];
      let vtx_shader_src : &'static str = "#version 330 core
@@ -107,20 +111,35 @@ pub fn prepare() -> () {
         [ 1.0,  1.0, 0.0 ],
      ];
     
-    let spheres : &mut[ [ [ f32; 4]; num_spheres*2]; 3 ];  
+    let spheres : &mut[ [ [ f32; 4]; (num_spheres+sphere_extras)*2]; 3 ];  
     unsafe{
         spheres  = &mut global_spheres;
     }
     
-    let vtx_shader = match gl_util::shader_from_source( vtx_shader_src, gl::VERTEX_SHADER, &mut error_message ) {
+    let vtx_shader = match gl_util::shader_from_source( vtx_shader_src.as_ptr(), gl::VERTEX_SHADER, &mut error_message ) {
         Some( shader ) => shader,
         None => { super::show_error( error_message.as_ptr()  ); 0 }
     };
 
-    let frag_shader  = match gl_util::shader_from_source( super::shaders::frag_shader_src, gl::FRAGMENT_SHADER,  &mut error_message ) {
-        Some( shader ) => shader,
-        None => { super::show_error( error_message.as_ptr() ); 0 }
-    };
+    let frag_shader : u32;
+    #[cfg(not(feature = "logger"))]
+    {
+        frag_shader  = match gl_util::shader_from_source( super::shaders::frag_shader_src.as_ptr(), gl::FRAGMENT_SHADER,  &mut error_message ) {
+            Some( shader ) => shader,
+            None => { super::show_error( error_message.as_ptr() ); 0 }
+        };
+    }
+
+    #[cfg(feature = "logger")]
+    {
+        unsafe{  
+            super::read_file( "shader.glsl\0", &mut glbl_shader_code); 
+            frag_shader  = match gl_util::shader_from_source( glbl_shader_code.as_ptr(), gl::FRAGMENT_SHADER,  &mut error_message ) {
+                Some( shader ) => shader,
+                None => { super::show_error( error_message.as_ptr() ); 0 }
+            };
+        }
+    }
 
     unsafe{
         shader_prog = match gl_util::program_from_shaders(vtx_shader, frag_shader, &mut error_message ) {
@@ -130,34 +149,65 @@ pub fn prepare() -> () {
     }
 
     // collect the values from f64 into u8 in a separate vec
-    let mut rng_terrain : random::Rng = random::Rng{seed: core::num::Wrapping(9231249)};
 
     unsafe{
-        let mut scl = 128.0;
-        for itr in 0..7 {
-            randomize( &mut src_terrain, &mut rng_terrain, scl ); 
-            for i in 0..itr{
-                smooth( &mut src_terrain); 
-            }
-            scl /= 3.0;
+        let mut rng_terrain : random::Rng = random::Rng{seed: core::num::Wrapping(9231249)};
+        let mut lumps : [(f32,f32,f32);50] = [(0.0,0.0,0.0);50];
+        let num_lumps = 50;
+
+        for nl in 0..num_lumps {
+            let x = rng_terrain.next_f32();
+            let y = rng_terrain.next_f32();
+            let f = rng_terrain.next_f32();
+            lumps[ nl ] = (x,y,f);
         }
 
-        for y in 0..512  {
-            for x in 0..512{
-                let fx = ( 256.0 - x as f32 ) / 256f32;
-                let fy = ( 256.0 - y as f32 ) / 256f32;
-                let mut dist : f32 =  (fx*fx)+ (fy*fy);//.sqrt();
-                dist = ( 1.0 / ( 0.28 + dist ) ).max( 2.4);
-                gpixels[ (y*512+x)*4 as usize ] = ( src_terrain[ (y*512+x) as usize ] * (1.0+dist) ) as u8;
-                gpixels[ (y*512+x)*4+1 as usize ] = ( src_terrain[ (y*512+x) as usize ] * (1.0+dist) ) as u8;
-                gpixels[ (y*512+x)*4+2 as usize ] = ( src_terrain[ (y*512+x) as usize ] * (1.0+dist) ) as u8;
-                gpixels[ (y*512+x)*4+3 as usize ] = ( src_terrain[ (y*512+x) as usize ] * (1.0+dist) ) as u8;
+        for i in 0..1_000_000 {
+            let x = rng_terrain.next_f32();
+            let y = rng_terrain.next_f32();
+            let mut charge = 0.0;
+            for nl in 0..num_lumps {
+                let lmp = lumps.get(nl).unwrap();
+                let dist = (x-lmp.0)*(x-lmp.0) + (y-lmp.1)*(y-lmp.1);
+                charge += lmp.2*0.0001/dist;
+            }
+            let pos = ((y*512f32) as usize *512)+(x*512f32) as usize;
+            src_terrain[ pos ] += charge;
+            if src_terrain[ pos ] > 1.0  {
+                src_terrain[ pos ] = 1.0
             }
         }
-        gpixels[ (260*512+272)*4 as usize ] = 220;
-        gpixels[ (259*512+272)*4 as usize ] = 220;
-        gpixels[ (260*512+271)*4 as usize ] = 220;
-        gpixels[ (259*512+271)*4 as usize ] = 220;
+        smooth( &mut src_terrain); 
+        for y in 0..512  {
+            for x in 0..512{
+                gpixels[ (y*512+x)*4 as usize ] = (src_terrain[ (y*512+x) as usize ]*255.0) as u8;
+            }
+        }
+
+        // let mut scl = 128.0;
+        // for itr in 0..7 {
+        //     randomize( &mut src_terrain, &mut rng, scl ); 
+        //     for i in 0..itr{
+        //         smooth( &mut src_terrain); 
+        //     }
+        //     scl /= 3.0;
+        // }
+
+        // for y in 0..512  {
+        //     for x in 0..512{
+        //         let fx = ( 256.0 - x as f32 ) / 256f32;
+        //         let fy = ( 256.0 - y as f32 ) / 256f32;
+        //         let mut dist : f32 =  ((fx*fx)+ (fy*fy));//.sqrt();
+        //         dist = ( 1.0 / ( 0.28 + dist ) ).max( 2.4);
+        //         gpixels[ (y*512+x)*4 as usize ] = ( src_terrain[ (y*512+x) as usize ] * (1.0+dist) ) as u8;
+        //     }
+        // }
+        // gpixels[ (256*512+272) as usize ] = 255;
+        // gpixels[ (255*512+272) as usize ] = 255;
+        gpixels[ (260*512+272) as usize ] = 220;
+        gpixels[ (259*512+272) as usize ] = 220;
+        gpixels[ (260*512+271) as usize ] = 220;
+        gpixels[ (259*512+271) as usize ] = 220;
     }
 
 
@@ -193,8 +243,7 @@ pub fn prepare() -> () {
         if idx > 0{
             spheres[ SPHERES_CURRENT][ idx*2 ][ 1 ] = 1000.0f32 + idx as f32;
         } else {
-//            spheres[ SPHERES_CURRENT][ idx*2 ][ 1 ] = -2.0f32 + 52.5;
-            spheres[ SPHERES_CURRENT][ idx*2 ][ 1 ] = 0.0;
+            spheres[ SPHERES_CURRENT][ idx*2 ][ 1 ] = 1.0;
         }
         spheres[ SPHERES_CURRENT][ idx*2 ][ 2 ] = 0.0f32;
         spheres[ SPHERES_CURRENT][ idx*2 ][ 3 ] = 0.15*0.15;    //25.3f32;            // 5^2
@@ -210,7 +259,7 @@ pub fn prepare() -> () {
         // spheres[ SPHERES_TARGET][ idx*2+1 ][ 2 ] = 0.02f32;
         // spheres[ SPHERES_TARGET][ idx*2+1 ][ 3 ] = 1.317f32;
     }
-    frame( 960, 0.0f32, false );
+//    frame( 960, 0.0f32, false );
 //    frame( 1020, false );
 }
 
@@ -272,6 +321,69 @@ const SetLocalI : u8 = 2;               // dest idx, value (u8, converted to f32
 const CopyAdjust : u8 = 3;              // dest idx, src idx, count
 const CopyRNDAdjust : u8 = 4;              // dest idx, src idx, count
 const SetV : u8 = 5;
+
+static mut old_x : i32 = 0;
+static mut old_y : i32 = 0;
+static mut moving_camera : bool  = false;
+static mut world_pos : [ f32;3] = [ 0.0; 3];
+static mut rotating_camera : bool  = false;
+static mut world_rot : [ f32;3] = [ 0.0; 3];
+
+#[cfg(feature = "logger")]
+pub fn set_pos( x: i32, y: i32, ctrl : bool ) {
+    unsafe{
+        if moving_camera {
+            if ctrl{
+                world_pos[ 1 ] += ( y-old_y) as f32 / 32.0;
+            } else {
+                world_pos[ 0 ] += ( x-old_x) as f32 / 32.0;
+                world_pos[ 2 ] += ( y-old_y) as f32 / 32.0;
+            }
+        } else if rotating_camera {
+            world_rot[ 0 ] += ( y-old_y) as f32 / 1024.0;
+            world_rot[ 1 ] += ( x-old_x) as f32 / 1024.0;
+//            world_rot[ 2 ] += ( y-old_y) as f32 / 32.0;
+    
+        }
+        old_x = x;
+        old_y = y;
+    }
+}
+
+#[cfg(feature = "logger")]
+pub fn rbutton_down( x: i32, y: i32 ) {
+    unsafe{ 
+        old_x = x;
+        old_y = y;
+        moving_camera = false;
+        rotating_camera = true;
+    }
+}
+
+#[cfg(feature = "logger")]
+pub fn rbutton_up( ) {
+    unsafe{ 
+        rotating_camera = false;
+    }
+}
+
+#[cfg(feature = "logger")]
+pub fn lbutton_down( x: i32, y: i32 ) {
+    unsafe{ 
+        old_x = x;
+        old_y = y;
+        moving_camera = true;
+        rotating_camera = false;
+    }
+}
+
+#[cfg(feature = "logger")]
+pub fn lbutton_up( ) {
+    unsafe{ 
+        moving_camera = false;
+    }
+}
+
 
 
 static global_program : &[u8] = &[
@@ -394,7 +506,7 @@ static global_program : &[u8] = &[
     SetLocalI,          DELAY_COUNTER, CONST_BEAT,
 ];
 
-fn executeCommand( program : &[ u8], locals : &mut [f32], spheres : &mut [ [ [ f32; 4]; num_spheres*2]; 3 ], consts : &[f32] ){
+fn executeCommand( program : &[ u8], locals : &mut [f32], spheres : &mut [ [ [ f32; 4]; (num_spheres+sphere_extras)*2]; 3 ], consts : &[f32] ){
     let ip : usize = locals[ INSTRUCTION_PTR as usize ] as usize;
     let instruction = program[ ip ];
     match instruction{
@@ -477,7 +589,7 @@ pub fn smooth_Step( x: f32, min_value: f32, max_value: f32 ) -> f32 {
 
 // calc sphere positions
 pub fn frame( ticks : u32, now : f32, render_frame : bool ) -> () {
-    let spheres : &mut[ [ [ f32; 4]; num_spheres*2]; 3 ];  
+    let spheres : &mut[ [ [ f32; 4]; (num_spheres+sphere_extras)*2]; 3 ];  
     let locals : &mut [ f32; 16 ];
     unsafe{
         spheres  = &mut global_spheres;
@@ -555,6 +667,17 @@ pub fn frame( ticks : u32, now : f32, render_frame : bool ) -> () {
             spheres[SPHERES_CURRENT][ idx*2 ][ 1 ] = pos.y;
             spheres[SPHERES_CURRENT][ idx*2 ][ 2 ] = pos.z;
         }
+        unsafe{
+            spheres[SPHERES_CURRENT][ 80*2 ][ 0 ] = world_pos[0];
+            spheres[SPHERES_CURRENT][ 80*2 ][ 1 ] = world_pos[1];
+            spheres[SPHERES_CURRENT][ 80*2 ][ 2 ] = world_pos[2];
+
+            spheres[SPHERES_CURRENT][ 80*2+1 ][ 0 ] = world_rot[0];
+            spheres[SPHERES_CURRENT][ 80*2+1 ][ 1 ] = world_rot[1];
+            spheres[SPHERES_CURRENT][ 80*2+1 ][ 2 ] = world_rot[2];
+
+        }
+
         // // Interpolate sphere attributes
         for idx in 0..num_spheres*2 {
             for sub_idx in 0..4 {
@@ -574,8 +697,8 @@ pub fn frame( ticks : u32, now : f32, render_frame : bool ) -> () {
             gl::BindTexture( gl::TEXTURE_2D, tex_buffer_id );
             gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGB, 512, 512, 0, gl::RGBA, gl::UNSIGNED_BYTE, gpixels.as_ptr() as *const CVoid);
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32 );
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32 );
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32 );
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32 );
     
             let time_loc : i32 = gl::GetUniformLocation(shader_prog, "iTime\0".as_ptr());
     //        let time_loc : i32 = gl::GetUniformLocation(shader_prog, "e\0".as_ptr());
@@ -583,7 +706,7 @@ pub fn frame( ticks : u32, now : f32, render_frame : bool ) -> () {
 
 //            let shperes_loc : i32 = gl::GetUniformLocation(shader_prog, "d\0".as_ptr());
             let shperes_loc : i32 = gl::GetUniformLocation(shader_prog, "spheres\0".as_ptr());
-            gl::Uniform4fv(shperes_loc, num_spheres as i32 * 2, transmute::<_,*const gl::GLfloat>( spheres.as_ptr() ) );
+            gl::Uniform4fv(shperes_loc, (num_spheres+sphere_extras) as i32 * 2, transmute::<_,*const gl::GLfloat>( spheres.as_ptr() ) );
 
             gl::BindVertexArray(vertex_array_id);
             gl::DrawArrays( gl::TRIANGLE_STRIP, 0, 4 );

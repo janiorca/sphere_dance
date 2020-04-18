@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["SLIMPANDA\\janio <jani.peltonen@gmail.com>"]
 edition = "2018"
 
+[features]
+logger = []
+
 [profile.release]
 lto = true 
 codegen-units = 1    # should be 1, test diff
@@ -18,4 +21,5 @@ opt-level = 0
 panic = "abort"
 
 [dependencies]
-winapi = { version = "0.3.8", features = ["winuser", "libloaderapi", "processthreadsapi" ] }
+winapi = { version = "0.3.8", features = ["winuser", "libloaderapi", "processthreadsapi", "fileapi", "handleapi" ] }
+#winapi = { version = "0.3.8", features = ["winuser", "libloaderapi", "processthreadsapi" ] }

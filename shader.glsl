@@ -1,4 +1,3 @@
-pub static frag_shader_src : &'static str = "
 #version 330 core
 #define steps 165.0
 const int num_spheres = 80;
@@ -404,4 +403,4 @@ void main()
     }
     vec3 fragFinal = pow( final_color, vec3(1.0 / 2.2) );
     fragColor = vec4(fragFinal, 1.0);
-}\0\0";
+}

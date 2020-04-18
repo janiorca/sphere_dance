@@ -33,6 +33,8 @@ pub const TEXTURE_MIN_FILTER: GLenum = 0x2801;
 pub const TEXTURE_WRAP_S: GLenum = 0x2802;
 pub const TEXTURE_WRAP_T: GLenum = 0x2803;
 pub const REPEAT: GLenum = 0x2901;
+pub const CLAMP_TO_EDGE: GLenum = 0x812F;
+
 pub const TEXTURE0: GLenum = 0x84C0;
 pub const FRAGMENT_SHADER: GLenum = 0x8B30;
 pub const VERTEX_SHADER: GLenum = 0x8B31;

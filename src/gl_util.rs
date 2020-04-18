@@ -20,12 +20,12 @@ pub fn program_from_shaders( vtx_shader : gl::GLuint, frag_shader : gl::GLuint, 
     return Some( program_id );
 }
 
-pub fn shader_from_source( shader_source : &str, kind: gl::GLenum, error_dest : &mut [i8] ) -> Option<gl::GLuint> {
+pub fn shader_from_source( shader_source : *const u8, kind: gl::GLenum, error_dest : &mut [i8] ) -> Option<gl::GLuint> {
     let id;
     let mut success: gl::GLint = 1;
     unsafe {
         id = gl::CreateShader(kind);
-        gl::ShaderSource(id, 1, &shader_source.as_ptr(), 0 as *const _);
+        gl::ShaderSource(id, 1, &shader_source, 0 as *const _);
         gl::CompileShader(id);
         gl::GetShaderiv(id, gl::COMPILE_STATUS, &mut success);
     }

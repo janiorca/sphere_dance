@@ -72,13 +72,66 @@ use winapi::um::winuser::{
     WS_VISIBLE,
 };
 
+use winapi::um::winnt::{
+    FILE_ATTRIBUTE_NORMAL,
+    FILE_APPEND_DATA,
+    GENERIC_READ,
+    GENERIC_WRITE
+};
 
+use winapi::um::fileapi::{
+    OPEN_ALWAYS,
+    OPEN_EXISTING,
+    CREATE_ALWAYS,
+    WriteFile,
+    ReadFile,
+    CreateFileA,
+};
+
+use winapi::um::handleapi::CloseHandle;
+
+#[cfg(not(feature = "logger"))]
 pub unsafe extern "system" fn window_proc(hwnd: HWND,
     msg: UINT, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
 
     match msg {
         winapi::um::winuser::WM_DESTROY => {
             PostQuitMessage(0);
+        }
+        _ => { return DefWindowProcA(hwnd, msg, w_param, l_param); }
+    }
+    return 0;
+}
+
+#[cfg(feature = "logger")]
+pub unsafe extern "system" fn window_proc(hwnd: HWND,
+    msg: UINT, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
+
+    match msg {
+        winapi::um::winuser::WM_DESTROY => {
+            PostQuitMessage(0);
+        },
+        winapi::um::winuser::WM_MOUSEMOVE => {
+            let x_pos = ( ( l_param as u32 ) & 0x0000ffff) as i32;
+            let y_pos = ((( l_param as u32 ) & 0xffff0000)>>16) as i32;
+            let ctrl : bool = ( w_param & winapi::um::winuser::MK_CONTROL ) != 0;
+            intro::set_pos(x_pos, y_pos, ctrl);
+        },
+        winapi::um::winuser::WM_LBUTTONDOWN => {
+            let x_pos = ( ( l_param as u32 ) & 0x0000ffff) as i32;
+            let y_pos = ((( l_param as u32 ) & 0xffff0000)>>16) as i32;
+            intro::lbutton_down(x_pos,y_pos);
+        },
+        winapi::um::winuser::WM_LBUTTONUP => {
+            intro::lbutton_up();
+        }
+        winapi::um::winuser::WM_RBUTTONDOWN => {
+            let x_pos = ( ( l_param as u32 ) & 0x0000ffff) as i32;
+            let y_pos = ((( l_param as u32 ) & 0xffff0000)>>16) as i32;
+            intro::rbutton_down(x_pos,y_pos);
+        },
+        winapi::um::winuser::WM_RBUTTONUP => {
+            intro::rbutton_up();
         }
         _ => { return DefWindowProcA(hwnd, msg, w_param, l_param); }
     }
@@ -205,13 +258,49 @@ pub unsafe extern fn memcpy(dest: *mut u8, src: *const u8, n: usize) -> *mut u8 
     dest
 }
 
+#[cfg(feature = "logger")]
+pub unsafe fn log( message : &str ) {
+    let name = "dbg_out.txt\0";
+    let mut out = 0;
+
+    let hFile = CreateFileA( name.as_ptr() as *const i8, FILE_APPEND_DATA, 0, 
+                0 as *mut winapi::um::minwinbase::SECURITY_ATTRIBUTES, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, 
+                0 as *mut winapi::ctypes::c_void );
+    WriteFile( hFile, message.as_ptr() as *const winapi::ctypes::c_void, message.len() as u32, &mut out, 
+                0 as *mut winapi::um::minwinbase::OVERLAPPED );
+    CloseHandle( hFile );
+}
+
+#[cfg(feature = "logger")]
+pub unsafe fn read_file( file_name : &str, dst : &mut [u8] ) {
+    let name = "dbg_out.txt\0";
+    let mut out = 0;
+
+    log( "Creating file for reading\n");
+    let hFile = CreateFileA( file_name.as_ptr() as *const i8, GENERIC_READ, 0, 
+                0 as *mut winapi::um::minwinbase::SECURITY_ATTRIBUTES, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 
+                0 as *mut winapi::ctypes::c_void );
+    log( "Reading...\n");
+    ReadFile( hFile, dst.as_mut_ptr() as *mut winapi::ctypes::c_void, dst.len() as u32, &mut out, 
+                0 as *mut winapi::um::minwinbase::OVERLAPPED );
+    log( "Close handle...\n");
+    CloseHandle( hFile );
+}
+
 
 #[no_mangle]
 pub extern "system" fn mainCRTStartup() {
     let ( window, hdc ) = create_window(  );
 
+    unsafe{
+        log("Started\n");
+        log("Line2\n");
+    }
+
     intro::prepare();
     let mut time : f32 = 0.0;
+    unsafe{ log("Entering loop\n"); };
+
     loop {
         if !handle_message( window ) {
             break;
