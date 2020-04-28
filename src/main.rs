@@ -9,7 +9,8 @@
 mod shaders;
 mod math_util;
 mod gl;
-mod gl_util;
+pub mod gl_util;
+pub mod util;
 mod intro;
 mod random;
 
@@ -72,23 +73,6 @@ use winapi::um::winuser::{
     WS_VISIBLE,
 };
 
-use winapi::um::winnt::{
-    FILE_ATTRIBUTE_NORMAL,
-    FILE_APPEND_DATA,
-    GENERIC_READ,
-    GENERIC_WRITE
-};
-
-use winapi::um::fileapi::{
-    OPEN_ALWAYS,
-    OPEN_EXISTING,
-    CREATE_ALWAYS,
-    WriteFile,
-    ReadFile,
-    CreateFileA,
-};
-
-use winapi::um::handleapi::CloseHandle;
 
 #[cfg(not(feature = "logger"))]
 pub unsafe extern "system" fn window_proc(hwnd: HWND,
@@ -187,28 +171,40 @@ fn create_window( ) -> ( HWND, HDC ) {
         pfd.cColorBits = 32;
         pfd.cAlphaBits = 8;
         pfd.cDepthBits = 32;
-         
-        let pf_id : i32 = ChoosePixelFormat(h_dc, &pfd );
-        if pf_id == 0 {
-            show_error( "ChoosePixelFormat() failed.\0".as_ptr() as *const i8);
-            return ( 0 as HWND, h_dc ) ;
+
+        #[cfg(feature = "logger")]
+        {
+            let pf_id : i32 = ChoosePixelFormat(h_dc, &pfd );
+            if pf_id == 0 {
+                show_error( "ChoosePixelFormat() failed.\0".as_ptr() as *const i8);
+                return ( 0 as HWND, h_dc ) ;
+            }
+
+            if SetPixelFormat(h_dc, pf_id, &pfd) == 0  {
+                show_error( "SetPixelFormat() failed.\0".as_ptr() as *const i8);
+                return ( 0 as HWND, h_dc ) ;
+            }
+
+            let gl_context : HGLRC = wglCreateContext(h_dc);    // Rendering Contex
+            if gl_context == 0 as HGLRC {
+                show_error( "wglCreateContext() failed.\0".as_ptr() as *const i8 );
+                return ( 0 as HWND, h_dc ) ;
+            }
+            
+            if wglMakeCurrent(h_dc, gl_context) == 0 {
+                show_error( "wglMakeCurrent() failed.\0".as_ptr() as *const i8);
+                return ( 0 as HWND, h_dc ) ;
+            }
         }
 
-        if SetPixelFormat(h_dc, pf_id, &pfd) == 0  {
-            show_error( "SetPixelFormat() failed.\0".as_ptr() as *const i8);
-            return ( 0 as HWND, h_dc ) ;
+        #[cfg(not(feature = "logger"))]
+        {
+            let pf_id : i32 = ChoosePixelFormat(h_dc, &pfd );
+            SetPixelFormat(h_dc, pf_id, &pfd);
+            let gl_context : HGLRC = wglCreateContext(h_dc);    // Rendering Context
+            wglMakeCurrent(h_dc, gl_context);
         }
 
-        let gl_context : HGLRC = wglCreateContext(h_dc);    // Rendering Contex
-        if gl_context == 0 as HGLRC {
-            show_error( "wglCreateContext() failed.\0".as_ptr() as *const i8 );
-            return ( 0 as HWND, h_dc ) ;
-        }
-         
-        if wglMakeCurrent(h_dc, gl_context) == 0 {
-            show_error( "wglMakeCurrent() failed.\0".as_ptr() as *const i8);
-            return ( 0 as HWND, h_dc ) ;
-        }
         gl::init();
         gl::wglSwapIntervalEXT(1);
         ( h_wnd, h_dc )
@@ -258,48 +254,21 @@ pub unsafe extern fn memcpy(dest: *mut u8, src: *const u8, n: usize) -> *mut u8 
     dest
 }
 
-#[cfg(feature = "logger")]
-pub unsafe fn log( message : &str ) {
-    let name = "dbg_out.txt\0";
-    let mut out = 0;
-
-    let hFile = CreateFileA( name.as_ptr() as *const i8, FILE_APPEND_DATA, 0, 
-                0 as *mut winapi::um::minwinbase::SECURITY_ATTRIBUTES, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, 
-                0 as *mut winapi::ctypes::c_void );
-    WriteFile( hFile, message.as_ptr() as *const winapi::ctypes::c_void, message.len() as u32, &mut out, 
-                0 as *mut winapi::um::minwinbase::OVERLAPPED );
-    CloseHandle( hFile );
-}
-
-#[cfg(feature = "logger")]
-pub unsafe fn read_file( file_name : &str, dst : &mut [u8] ) {
-    let name = "dbg_out.txt\0";
-    let mut out = 0;
-
-    log( "Creating file for reading\n");
-    let hFile = CreateFileA( file_name.as_ptr() as *const i8, GENERIC_READ, 0, 
-                0 as *mut winapi::um::minwinbase::SECURITY_ATTRIBUTES, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 
-                0 as *mut winapi::ctypes::c_void );
-    log( "Reading...\n");
-    ReadFile( hFile, dst.as_mut_ptr() as *mut winapi::ctypes::c_void, dst.len() as u32, &mut out, 
-                0 as *mut winapi::um::minwinbase::OVERLAPPED );
-    log( "Close handle...\n");
-    CloseHandle( hFile );
-}
 
 
 #[no_mangle]
 pub extern "system" fn mainCRTStartup() {
     let ( window, hdc ) = create_window(  );
 
-    unsafe{
-        log("Started\n");
-        log("Line2\n");
-    }
-
     intro::prepare();
     let mut time : f32 = 0.0;
-    unsafe{ log("Entering loop\n"); };
+
+    unsafe{ log!("Entering loop\n"); };
+    unsafe{ log!("Number 1\n", 12.022f32); };
+    unsafe{ log!("Number 2\n", 1212.912f32); };
+    unsafe{ log!("Number 3\n", 12001.024f32); };
+    unsafe{ log!("Number 3\n", 12.3, 54.0); };
+    unsafe{ log!("Number 3\n", 12.3, 54.0, 12.09); };
 
     loop {
         if !handle_message( window ) {

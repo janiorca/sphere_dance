@@ -98,7 +98,8 @@ bool intersects_sphere( vec3 ray_dir, vec3 origin, vec3 sphere, float sphere_rad
 }
 
 float get_height( vec2 pos, out float level ) {
-    pos += vec2( 270.0, 252.0 );
+//    pos += vec2( 270.0, 252.0 );
+    pos += vec2( 256.0, 256.0 );
     vec4 col = texture( terrain, pos/512.0  );
     level = col.x* 5.0;
     return col.x*60.0-12.1;
@@ -170,6 +171,7 @@ bool cast_ray( vec3 origin, vec3 dest, float max_depth, out float t, out vec3 co
             col = vec3( level/40., level/40., 1.0);
             if( level <= 2.5 ){
                 col = vec3( 0.2, 0.071, .01 );
+//                col = vec3( 0.2, 0.071, .01 );
                 refrac = 1.1;
             } else {
                 col = vec3( 0.8, 0.01, 0.01 );
@@ -189,7 +191,8 @@ bool cast_ray( vec3 origin, vec3 dest, float max_depth, out float t, out vec3 co
                 col = vec3( 0.2, 0.171, 0.01 );
                 refrac = 1.5;
             } else {
-                col = vec3( 0.8, 0.01, 0.01 );
+                col = vec3( 0.2, 0.2, 0.2 );
+//                col = vec3( 0.8, 0.01, 0.01 );
                 refrac =1.5;
             }
 
@@ -200,10 +203,10 @@ bool cast_ray( vec3 origin, vec3 dest, float max_depth, out float t, out vec3 co
 }
 
 
-float fresnel( float n, vec3 normal, vec3 incident )
+float fresnel( float n2, vec3 normal, vec3 incident )
 {
     // Schlick aproximation
-    float r0 = (1.0-n) / (1.0+n);
+    float r0 = (1.0-n2) / (1.0+n2);
     r0 *= r0;
     float cosX = -dot(normal, incident);
     float x = 1.0-cosX;
@@ -263,7 +266,13 @@ void main()
                         0,     cos(_angle2),-sin( _angle2 ),
                         0,     sin(_angle2), cos(_angle2) );
 
-    rot_m = rot_m * tilt_m;
+    float _angle3 = spheres[ 161 ].z;
+    mat3 roll = mat3(  cos(_angle3),     -sin( _angle3) ,       0 , 
+                        sin(_angle3),     cos(_angle3),0 ,
+                        0,     0, 1 );
+
+
+   rot_m = rot_m * tilt_m * roll;
 
 //    vec3 camera_translation = vec3( 0., .8, 2.);
     vec3 camera_translation = spheres[160].xyz;
@@ -326,14 +335,28 @@ void main()
         vec3 pos2;
         float g_t = ground_plane_intersect( ray_dir, origin , -0.5, pos2, norm2 );
         if( g_t <= current_t ) {
-            current_t = g_t;
-            refractive_index = 1.7;
-            diffuseCol = vec3( 0.05, 0.05, 0.05 );
-            pos = origin + ray_dir * current_t*0.9999;
-            norm = norm2 + water_ripple( pos )*0.005;
+            refractive_index = 1.1;
+
+            pos = origin + ray_dir * g_t*0.9999;
+
+//            norm = norm2 + water_ripple( pos )*0.005;
+            norm = norm2 + water_ripple( pos )*0.01;
             norm = normalize(norm);
+
             reflectance = fresnel( refractive_index, norm, ray_dir);
             new_ray_dir = reflect( ray_dir, norm );
+            final_idx = 0;
+
+            //bend and rethrow ray underwater
+            vec3 uw_dir = refract( ray_dir, norm, 1.-reflectance);
+            float uw_t;
+            diffuseCol = vec3( 0.05, 0.05, 0.15 );                
+            if( cast_ray(pos, pos+uw_dir*100.0, 115, uw_t, diffuseCol2, norm2, refractive_index2 ) ) {
+                diffuseCol += diffuseCol2 * exp( -uw_t*40.0 );//*-0.25 ) ); 
+//                diffuseCol = vec3( 12.,12.,0);//diffuseCol2 * 0;//vec3( exp( uw_t*-0.25 ), exp( uw_t*-0.5 ), exp( uw_t*-0.75 ) ); 
+            // } else {
+            //     diffuseCol = vec3( 0.05, 0.05, 0.15 );                
+            }
             final_idx = 0;
          } 
 
@@ -354,10 +377,10 @@ void main()
             vec3 blocker_normal;
             float blocker_refractive_index;
             vec3 sun_pos = pos + sun_dir*5.0;
-            // if( cast_ray( pos, sun_pos, 20.0, t, blocker_col, blocker_normal, blocker_refractive_index ) ) 
-            // {
-            //     in_shade = true;
-            // }
+            if( cast_ray( pos, sun_pos, 20.0, t, blocker_col, blocker_normal, blocker_refractive_index ) ) 
+            {
+                in_shade = true;
+            }
             if( !in_shade ) 
             {
                 for( int idx=0; idx < num_spheres; idx++ ) 
@@ -389,10 +412,10 @@ void main()
         }
         // attenuate
         point_color *= extinction( current_t );
-        if( final_idx !=0 ) {
-            point_color += add_burn( current_t, dot( sun_dir,ray_dir) );
+        // if( final_idx !=0 ) {
+        //     point_color += add_burn( current_t, dot( sun_dir,ray_dir) );
 
-        }
+        // }
         point_color += in_scatter( current_t, dot( sun_dir,ray_dir) );
 
         final_color += point_color * contribution * ( 1.0 - reflectance );
