@@ -103,25 +103,27 @@ static mut pivot_cam_centre : [ f32; 3] = [ 0.0; 3];
 static mut pivot_cam_dist : [ f32; 3] = [ 0.0; 3];
 static mut pivot_cam_angle : [ f32; 3] = [ 0.0; 3];
 
+static mut camera_mode : u32 = 0;
+
 #[cfg(feature = "logger")]
 pub fn set_pos( x: i32, y: i32, ctrl : bool ) {
-//     unsafe{
-//         if moving_camera {
-//             if ctrl{
-//                 world_pos[ 1 ] += ( y-old_y) as f32 / 32.0;
-//             } else {
-//                 world_pos[ 0 ] += ( x-old_x) as f32 / 32.0;
-//                 world_pos[ 2 ] += ( y-old_y) as f32 / 32.0;
-//             }
-//         } else if rotating_camera {
-//             world_rot[ 0 ] += ( y-old_y) as f32 / 1024.0;
-//             world_rot[ 1 ] += ( x-old_x) as f32 / 1024.0;
-// //            world_rot[ 2 ] += ( y-old_y) as f32 / 32.0;
+    unsafe{
+        if moving_camera {
+            if ctrl{
+                world_pos[ 1 ] += ( y-old_y) as f32 / 32.0;
+            } else {
+                world_pos[ 0 ] += ( x-old_x) as f32 / 32.0;
+                world_pos[ 2 ] += ( y-old_y) as f32 / 32.0;
+            }
+        } else if rotating_camera {
+            world_rot[ 0 ] += ( y-old_y) as f32 / 1024.0;
+            world_rot[ 1 ] += ( x-old_x) as f32 / 1024.0;
+//            world_rot[ 2 ] += ( y-old_y) as f32 / 32.0;
     
-//         }
-//         old_x = x;
-//         old_y = y;
-//     }
+        }
+        old_x = x;
+        old_y = y;
+    }
 }
 
 #[cfg(feature = "logger")]
@@ -157,67 +159,9 @@ pub fn lbutton_up( ) {
     unsafe{ 
         moving_camera = false;
     }
+    unsafe{ super::log!( "Camera: ", world_pos[ 0 ], world_pos[ 1 ], world_pos[ 2 ]); }
 }
 
-static mut cam_count : u32 = 0;
-
-fn setup_random_camera( ) {
-    let seed : u32;
-    unsafe{ 
-        seed = 9231249+cam_count;
-        cam_count += 1;
-    }   
-    setup_camera( seed, 0);
-    
-}
-
-fn setup_camera( seed : u32, mode : u8) {
-    let mut crng : random::Rng = random::Rng{seed: core::num::Wrapping(9231249+seed)};
-    let x = crng.next_f32();
-    let y = crng.next_f32();
-
-    let pos = (((y*512f32) as usize *512)+(x*512f32) as usize)*4;
-    unsafe{
-        world_pos[ 0 ] = (x-0.5)*512f32;
-        world_pos[ 1 ] = src_terrain[ pos ]*60.0-2.1+crng.next_f32()*5.0;
-        world_pos[ 2 ] = (y-0.5)*512f32;
-    
-//        world_rot[ 0 ]  =  (crng.next_f32()-0.5)*1.54;
-        world_rot[ 1 ]  =  (crng.next_f32()-0.5)*3.15;
-//        world_rot[ 2 ]  =  (crng.next_f32()-0.5)*0.05;
-    
-        camera_velocity[ 0 ] = (crng.next_f32()-0.5)*0.2;
-        camera_velocity[ 1 ] = (crng.next_f32()-0.5)*0.05;
-        camera_velocity[ 2 ] = (crng.next_f32()-0.5)*0.2;
-    
-        // camera_rot_speed[ 0 ] = (crng.next_f32()-0.5)*0.002;
-        // camera_rot_speed[ 1 ] = (crng.next_f32()-0.5)*0.001;
-        // camera_rot_speed[ 2 ] = (crng.next_f32()-0.5)*0.001;
- 
-        pivot_cam_centre = world_pos;
-
-        camera_rot_speed[ 1 ] = (crng.next_f32()-0.5)*0.01;
-
-        pivot_cam_dist[ 0 ] = 5.0f32;//crng.next_f32()*5.0f32;
-        pivot_cam_dist[ 1 ] = crng.next_f32()*0.1f32;
-        pivot_cam_dist[ 2 ] = crng.next_f32()*5.0f32;
-
-        pivot_cam_angle[1] = world_rot[ 1 ];
-    }
-    
-}
-
-// static sequence : &[u8] = [
-//     // type,    rnd_skip,   delay,   
-//     0,          0,          180,
-//     0,          0,          180,
-//     0,          0,          180,
-//     0,          0,          180,
-
-
-//     0,          0,          180,
-
-// ];
 
 pub fn prepare() -> () {
     let mut error_message : [i8;100] = [ 0; 100];
@@ -303,6 +247,13 @@ pub fn prepare() -> () {
             }
         }
         smooth( &mut src_terrain); 
+        let x : u32 = 256 + 130;
+        let y : u32 = 256 + 191;
+        let pos = ((y*512)+(x))*4+1;
+        super::log!( "!!!!");
+        super::log!( "", src_terrain[ (pos-1) as usize] );
+        super::log!( "!!!!");
+        src_terrain[ pos as usize] = 1.0f32;//500.0f32;
 
         for idx in 0..num_spheres {
             loop{
@@ -688,6 +639,158 @@ pub fn prepare() -> () {
 // }
 
 // calc sphere positions
+
+
+static mut delay_counter : u32 = 0;
+static mut play_pos : usize = 0;
+
+fn update_world() {
+    
+    unsafe{
+        camera_mode = sequence[ play_pos] as u32;
+        delay_counter = sequence[ play_pos+1].into() ;
+//        if camera_mode == 0 {
+            let seed : u32 = sequence[ play_pos+2].into() ;
+            setup_camera( seed, camera_mode as u8 );
+//        }
+        play_pos += 3;
+    }
+}
+
+static mut cam_count : u32 = 0;
+
+fn setup_random_camera( ) {
+    let seed : u32;
+    unsafe{ 
+        cam_count += 1;
+        setup_camera( cam_count, 1);
+    }   
+}
+
+fn setup_camera( seed : u32, mode : u8) {
+//    super::log!( "Setup Camera ", mode, seed );
+    unsafe{ super::log!( "Setup Camera: ", mode as f32, seed as f32 ); }
+
+    let mut crng : random::Rng = random::Rng{seed: core::num::Wrapping(9231249+seed)};
+    let x = crng.next_f32();
+    let y = crng.next_f32();
+
+    let pos = (((y*512f32) as usize *512)+(x*512f32) as usize)*4;
+    unsafe{
+        if mode == 0 {
+            world_pos[ 0 ] = (x-0.5)*512f32;
+            world_pos[ 1 ] = src_terrain[ pos ]*60.0-2.1+crng.next_f32()*5.0;
+            world_pos[ 2 ] = (y-0.5)*512f32;
+        
+            world_rot[ 0 ]  =  (crng.next_f32()-0.5)*1.54;
+            world_rot[ 1 ]  =  (crng.next_f32()-0.5)*3.15;
+            world_rot[ 2 ]  =  (crng.next_f32()-0.5)*0.05;
+        
+            camera_velocity[ 0 ] = (crng.next_f32()-0.5)*0.2;
+            camera_velocity[ 1 ] = (crng.next_f32()-0.5)*0.05;
+            camera_velocity[ 2 ] = (crng.next_f32()-0.5)*0.2;
+        
+            camera_rot_speed[ 0 ] = (crng.next_f32()-0.5)*0.002;
+            camera_rot_speed[ 1 ] = (crng.next_f32()-0.5)*0.001;
+            camera_rot_speed[ 2 ] = (crng.next_f32()-0.5)*0.001;
+    
+
+            pivot_cam_angle[1] = world_rot[ 1 ];
+            pivot_cam_centre[ 0 ] = 130.5;
+            pivot_cam_centre[ 1 ] = 26.7;
+            pivot_cam_centre[ 2 ] = 191.5;
+        } 
+        else if mode == 1 || mode == 2 {
+            world_rot[ 0 ]  =  (crng.next_f32()-0.5)*1.54;
+            world_rot[ 1 ]  =  (crng.next_f32()-0.5)*3.15;
+            world_rot[ 2 ]  =  (crng.next_f32()-0.5)*0.05;
+
+            camera_velocity[ 0 ] = (crng.next_f32()-0.5)*0.02;
+            camera_velocity[ 1 ] = (crng.next_f32()-0.5)*0.005;
+            camera_velocity[ 2 ] = (crng.next_f32()-0.5)*0.02;
+
+            camera_rot_speed[ 0 ] = (crng.next_f32()-0.5)*0.002;
+            camera_rot_speed[ 1 ] = (crng.next_f32()-0.5)*0.01;
+            camera_rot_speed[ 2 ] = (crng.next_f32()-0.5)*0.001;
+    
+            pivot_cam_dist[ 0 ] = 8.0f32-crng.next_f32()*10.0f32;
+            pivot_cam_dist[ 1 ] = crng.next_f32()*0.1f32;
+            pivot_cam_dist[ 2 ] = crng.next_f32()*5.0f32;
+    
+            pivot_cam_angle[1] = world_rot[ 1 ];
+    
+            pivot_cam_centre[ 0 ] = 130.5;
+            pivot_cam_centre[ 1 ] = 26.7;
+            pivot_cam_centre[ 2 ] = 191.5;
+            if mode == 2 {
+                pivot_cam_centre[ 0 ] = (x-0.5)*512f32;
+                pivot_cam_centre[ 1 ] = src_terrain[ pos ]*60.0-2.1+crng.next_f32()*5.0;
+                pivot_cam_centre[ 2 ] = (y-0.5)*512f32;
+            }
+        }
+//         world_pos[ 0 ] = (x-0.5)*512f32;
+//         world_pos[ 1 ] = src_terrain[ pos ]*60.0-2.1+crng.next_f32()*5.0;
+//         world_pos[ 2 ] = (y-0.5)*512f32;
+    
+// //        world_rot[ 0 ]  =  (crng.next_f32()-0.5)*1.54;
+//         world_rot[ 1 ]  =  (crng.next_f32()-0.5)*3.15;
+// //        world_rot[ 2 ]  =  (crng.next_f32()-0.5)*0.05;
+    
+//         camera_velocity[ 0 ] = (crng.next_f32()-0.5)*0.2;
+//         camera_velocity[ 1 ] = (crng.next_f32()-0.5)*0.05;
+//         camera_velocity[ 2 ] = (crng.next_f32()-0.5)*0.2;
+    
+    }
+    
+}
+
+//random camera centre 130.5525, 27.7635, 191.6042
+
+static sequence : &[u16] = &[
+     // type,    delay,     rnd_offset,   
+//     1,          65000,        0,
+
+    //  2,          180,        87,     // up circle sun
+    //  2,          180,        93,     // near spin
+    //  2,          180,        138,     // up sun sphers near spin
+    //  2,          180,        163,     // up sun sphers near spin
+    //  2,          180,        171,     // high shot down
+    //  2,          180,        190,     // near sphere
+
+    1,          380,        33,     // pass back over  
+    1,          380,        33,     // pass back over  
+    1,          380,        33,     // pass back over  
+    1,          380,        33,     // pass back over  
+    1,          280,        2,     // far shot
+     1,          280,        12,     // sun shot
+     1,          280,        22,     // closer rot shot
+     1,          280,        24,     // pass over ( clear shader error)
+     1,          280,        33,     // pass back over  
+     1,          280,        33,     // slow forward over pass
+     
+
+     0,          180,        24,
+     0,          180,       44,
+     0,          180,       51,
+     0,          180,       53,
+     0,          180,       58,
+     0,          180,       62,         //departing shot
+     
+     0,          180,       64,         //water wobbles
+     0,          180,       69,         //raising out
+     0,          180,       83,         //pannign shot
+
+     0,          180,       92,         //near past building
+
+     0,          180,       108,         //another out of the water
+     0,          180,       154,         //off sphere
+     0,          180,       154,         //side pan dark
+     0,          180,       166,         //side pan dark
+
+     //     0,          0,          180,
+
+];
+
 pub fn frame( ticks : u32, now : f32, render_frame : bool ) -> () {
     let spheres : &mut[ [ [ f32; 4]; (num_spheres+sphere_extras)*2]; 3 ];  
     let locals : &mut [ f32; 16 ];
@@ -697,20 +800,44 @@ pub fn frame( ticks : u32, now : f32, render_frame : bool ) -> () {
     }
 
     for tick in 0..ticks {
+        unsafe {
+            if delay_counter == 0 {
+                update_world( )
+            }
+            delay_counter -= 1;
+
+        }
+
         unsafe{
-            // world_pos[ 0 ] += camera_velocity[ 0 ];
-            // world_pos[ 1 ] += camera_velocity[ 1 ];
-            // world_pos[ 2 ] += camera_velocity[ 2 ];
+            if camera_mode == 0 {
+                world_pos[ 0 ] += camera_velocity[ 0 ];
+                world_pos[ 1 ] += camera_velocity[ 1 ];
+                world_pos[ 2 ] += camera_velocity[ 2 ];
+    
+                world_rot[ 0 ] += camera_rot_speed[ 0 ];
+                world_rot[ 1 ] += camera_rot_speed[ 1 ];
+                world_rot[ 2 ] += camera_rot_speed[ 2 ];
+            }  else if camera_mode == 1 || camera_mode == 2{
+                world_rot[ 0 ] += camera_rot_speed[ 0 ];
+                world_rot[ 1 ] += camera_rot_speed[ 1 ];
+                world_rot[ 2 ] += camera_rot_speed[ 2 ];
 
-            world_rot[ 0 ] += camera_rot_speed[ 0 ];
-            world_rot[ 1 ] += camera_rot_speed[ 1 ];
-            world_rot[ 2 ] += camera_rot_speed[ 2 ];
+                let angle = world_rot[ 1 ] - 3.14f32 / 2.0f32; //pivot_cam_angle[1];
+                world_pos[ 0 ] = pivot_cam_centre[ 0 ] + math_util::cos(angle )*pivot_cam_dist[ 0 ];
+                world_pos[ 1 ] = pivot_cam_centre[ 1 ];
+                world_pos[ 2 ] = pivot_cam_centre[ 2 ]- math_util::sin(angle)*pivot_cam_dist[ 0 ];
+                // // world_pos[ 2 ] += camera_velocity[ 2 ];
+    
+                pivot_cam_dist[ 0 ] += camera_velocity[ 0 ];
+            }
 
 
-            let angle = world_rot[ 1 ] - 3.14f32 / 2.0f32; //pivot_cam_angle[1];
-            world_pos[ 0 ] = pivot_cam_centre[ 0 ] + math_util::cos(angle )*pivot_cam_dist[ 0 ];
-            world_pos[ 2 ] = pivot_cam_centre[ 2 ]- math_util::sin(angle)*pivot_cam_dist[ 0 ];
-            // world_pos[ 2 ] += camera_velocity[ 2 ];
+
+//            let angle = world_rot[ 1 ] - 3.14f32 / 2.0f32; //pivot_cam_angle[1];
+//            world_pos[ 0 ] = pivot_cam_centre[ 0 ] + math_util::cos(angle )*pivot_cam_dist[ 0 ];
+ //           world_pos[ 1 ] = pivot_cam_centre[ 1 ];
+ //           world_pos[ 2 ] = pivot_cam_centre[ 2 ]- math_util::sin(angle)*pivot_cam_dist[ 0 ];
+            // // world_pos[ 2 ] += camera_velocity[ 2 ];
 
             // pivot_cam_centre = world_pos;
             // pivot_cam_dist[ 0 ] = crng.next_f32()*5.0f32;
@@ -722,7 +849,7 @@ pub fn frame( ticks : u32, now : f32, render_frame : bool ) -> () {
 
 
         }
-
+        
 
         // loop{
         //     if locals[ DELAY_COUNTER as usize ] > 0.0 {
