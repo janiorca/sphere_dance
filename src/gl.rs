@@ -83,6 +83,7 @@ static LOAD_DESC: &'static [(u16, &'static str)] = &[
 
     // Program functions
     (CreateProgramIdx, "glCreateProgram\0"),
+    #[cfg(feature = "logger")]
     (GetProgramivIdx, "glGetProgramiv\0"),
     (AttachShaderIdx, "glAttachShader\0"),    
     (DetachShaderIdx, "glDetachShader\0"),
@@ -93,8 +94,12 @@ static LOAD_DESC: &'static [(u16, &'static str)] = &[
     (CreateShaderIdx, "glCreateShader\0"),
     (ShaderSourceIdx, "glShaderSource\0"),
     (CompileShaderIdx, "glCompileShader\0"),
+
+    #[cfg(feature = "logger")]
     (GetShaderivIdx, "glGetShaderiv\0"),
+    #[cfg(feature = "logger")]
     (GetShaderInfoLogIdx, "glGetShaderInfoLog\0"),
+    #[cfg(feature = "logger")]
     (GetProgramInfoLogIdx, "glGetProgramInfoLog\0"),
 
     (GenVertexArraysIdx, "glGenVertexArrays\0"),
@@ -108,7 +113,6 @@ static LOAD_DESC: &'static [(u16, &'static str)] = &[
 
     (GetUniformLocationIdx, "glGetUniformLocation\0"),
     (Uniform1fIdx, "glUniform1f\0"),
-    (Uniform3fvIdx, "glUniform3fv\0"),
     (Uniform4fvIdx, "glUniform4fv\0"),
   
     // Texture
@@ -117,11 +121,8 @@ static LOAD_DESC: &'static [(u16, &'static str)] = &[
     (ActiveTextureIdx, "glActiveTexture\0"),
     (TexImage2DIdx, "glTexImage2D\0"),
     (TexParameteriIdx, "glTexParameteri\0"),
-
-//    ( wglSwapIntervalIdx, "wglSwapIn  tervalEXT\0" ),
-    // (CreateProgramIdx, b"glCreateProgram\0"),
-    // (ClearBufferfvIdx, b"glClearBufferfv\0"),
 ];
+
 
 static mut GL_API: [usize; 696] = [0; 696];
 
@@ -138,6 +139,7 @@ pub unsafe fn LinkProgram(program: GLuint) -> () {
     mem::transmute::<_, extern "system" fn(GLuint) -> ()>(*GL_API.get_unchecked(LinkProgramIdx as usize))(program)
 }
 
+#[cfg(feature = "logger")]
 pub unsafe fn GetProgramiv(program: GLuint, pname: GLenum, params: *mut GLint) -> () {
     mem::transmute::<_, extern "system" fn(GLuint, GLenum, *mut GLint) -> ()>(*GL_API.get_unchecked(GetProgramivIdx as usize))(program, pname, params)
 }
@@ -170,14 +172,17 @@ pub unsafe fn CompileShader(shader: GLuint) -> () {
     mem::transmute::<_, extern "system" fn(GLuint) -> ()>(*GL_API.get_unchecked(CompileShaderIdx as usize))(shader)
 }
 
+#[cfg(feature = "logger")]
 pub unsafe fn GetShaderiv(shader: GLuint, pname: GLenum, params: *mut GLint) -> () {
     mem::transmute::<_, extern "system" fn(GLuint, GLenum, *mut GLint) -> ()>(*GL_API.get_unchecked(GetShaderivIdx as usize))(shader, pname, params)
 }
 
+#[cfg(feature = "logger")]
 pub unsafe fn GetShaderInfoLog(shader: GLuint, bufSize: GLsizei, length: *mut GLsizei, infoLog: *mut GLchar) -> () {
     mem::transmute::<_, extern "system" fn(GLuint, GLsizei, *mut GLsizei, *mut GLchar) -> ()>(*GL_API.get_unchecked(GetShaderInfoLogIdx as usize))(shader, bufSize, length, infoLog)
 }
 
+#[cfg(feature = "logger")]
 pub unsafe fn GetProgramInfoLog(program: GLuint, bufSize: GLsizei, length: *mut GLsizei, infoLog: *mut GLchar) -> () {
     mem::transmute::<_, extern "system" fn(GLuint, GLsizei, *mut GLsizei, *mut GLchar) -> ()>(*GL_API.get_unchecked(GetProgramInfoLogIdx as usize))(program, bufSize, length, infoLog)
 }
@@ -220,10 +225,6 @@ pub unsafe fn GetUniformLocation(program: GLuint, name: *const GLchar) -> GLint 
 
 pub unsafe fn Uniform1f(location: GLint, v0: GLfloat) -> () {
     mem::transmute::<_, extern "system" fn(GLint, GLfloat) -> ()>(*GL_API.get_unchecked(Uniform1fIdx as usize))(location, v0)
-}
-
-pub unsafe fn Uniform3fv(location: GLint, count: GLsizei, value: *const GLfloat) -> () {
-    mem::transmute::<_, extern "system" fn(GLint, GLsizei, *const GLfloat) -> ()>(*GL_API.get_unchecked(Uniform3fvIdx as usize))(location, count, value)
 }
 
 pub unsafe fn Uniform4fv(location: GLint, count: GLsizei, value: *const GLfloat) -> () {

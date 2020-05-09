@@ -260,6 +260,7 @@ pub unsafe extern fn memcpy(dest: *mut u8, src: *const u8, n: usize) -> *mut u8 
 pub extern "system" fn mainCRTStartup() {
     let ( window, hdc ) = create_window(  );
 
+    unsafe{ log!("Prepare\n"); };
     intro::prepare();
     let mut time : f32 = 0.0;
 
@@ -268,6 +269,8 @@ pub extern "system" fn mainCRTStartup() {
     unsafe{ log!("Number 2\n", 1212.912f32); };
     unsafe{ log!("Number 3\n", 12001.024f32); };
     unsafe{ log!("Number 3\n", 12.3, 54.0); };
+
+
     unsafe{ log!("Number 3\n", 12.3, 54.0, 12.09); };
 
     loop {
