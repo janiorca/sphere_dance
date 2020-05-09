@@ -64,11 +64,12 @@ impl Mul<f32> for Vec3{
 fn smooth( pixels: &mut [ f32; 512*512*4 ]) {
     for y in 0..511 {
         for x in 0..511{
-            let mut val  = pixels[ (512*y+x)*4 ];
-            val += pixels[ (512*y+x+1)*4 ];
-            val += pixels[ (512*(y+1)+x)*4 ];
-            val += pixels[ (512*(y+1)+x+1)*4 ];
-            pixels[ (512*y+x)*4 ] = val / 4.0;
+            let offset = (512*y+x)*4;
+            let mut val  = pixels[ offset ];
+            val += pixels[ offset+4 ];
+            val += pixels[ offset+2048 ];
+            val += pixels[ offset+2052 ];
+            pixels[ offset ] = val / 4.0;
         }
     }
 }
@@ -229,6 +230,7 @@ pub fn prepare() -> () {
 
     unsafe{
         super::log!( "Build terrain!");
+        // COULD restructure this to create the points for each iteration instead of storing into array. Very slow but could save some bytes 
         let mut rng_terrain : random::Rng = random::Rng{seed: core::num::Wrapping(9231249)};
         let mut lumps : [(f32,f32,f32);50] = [(0.0,0.0,0.0);50];
         let num_lumps = 50;
@@ -266,7 +268,6 @@ pub fn prepare() -> () {
             loop{
                 let (x,y,pos) = random_pos( &mut rng_terrain );
                 if src_terrain[ pos ] > 0.3f32 {
-//                    set_v4( &mut spheres[ idx*2 ], x*512f32, src_terrain[ pos ]*60.0-12.1, y*512f32, 18.0f32);
                     spheres[ idx*2 ][ 0 ] = x*512f32;
                     spheres[ idx*2 ][ 1 ] = src_terrain[ pos ]*60.0-12.1;
                     spheres[ idx*2 ][ 2 ] = y*512f32;
@@ -317,12 +318,16 @@ static mut play_pos : usize = 0;
 fn update_world() {
     
     unsafe{
-        camera_mode = sequence[ play_pos] as u32;
-        delay_counter = sequence[ play_pos+1] as u32*60;
-            let seed : u32 = sequence[ play_pos+2].into() ;
+        if play_pos >= 21*2 && play_pos <= 33*2 {
+            camera_mode = 1;
+        } else {
+            camera_mode = 0;
+        }
+        delay_counter = sequence[ play_pos] as u32*60;
+            let seed : u32 = sequence[ play_pos+1].into() ;
             super::log!( "Camera", seed as f32, camera_mode as f32);
             setup_camera( seed, camera_mode as u8 );
-        play_pos += 3;
+        play_pos += 2;
     }
 }
 
@@ -374,6 +379,64 @@ fn setup_camera( seed : u32, mode : u8) {
 //random camera centre 130.5525, 27.7635, 191.6042
 
 static sequence : &[u16] = &[
+// CONFIRMED SEQUENCE
+// close shots of water - glimpses of land
+2,       64,         //water wobbles
+2,       434,         //water wobbles
+4,       65,         //water wobbles
+2,       798,         //water wobbles
+2,       436,         //water wobbles
+6,       1187,         //need better pan up from water shot   18
+
+// forward shots
+3,       317,           //idx 6
+3,       298, 
+5,       1649,       // low forward beach shot
+4,       909, 
+14,       724,         // long turning shot
+3,       1453,       // forward tuning shot nice
+3,       1007,       // nice color foward pan
+6,       723, 
+6,       1046,     // 33
+
+// left
+4,       123,           // idx 15
+8,       1299,        // animate sphere at this point. Could be longer
+
+// up to pan around
+3,       1120,       // pan color angle forward     // idx 17
+8,       636,        // rising upo high from water, nice long shadow
+6,       613,        // nice high shot looking down
+6,       1006,       // nice high look downn into holo map
+
+// far   
+4, 449,          // SPIN CAM_START   // idx 21
+4, 729,
+3, 398,
+
+//    nearer
+3, 353,
+
+// very close
+3, 942,
+5, 666,
+3, 345,
+3, 420,
+3, 495,
+3, 983,
+10, 741,
+
+// Leave holo
+2, 1490,     // SPIN CAM_LAST   // idx 32
+
+// Final pull back
+4,       166,        // nice pull back
+4,       151,        // pan back over sphere
+2,       691,        // very nice backward pass 
+2,       1112,       // pan back water  
+20,       1261,       // big wide back pan color
+
+/*
 // CONFIRMED SEQUENCE
 // close shots of water - glimpses of land
 0,          2,       64,         //water wobbles
@@ -431,7 +494,7 @@ static sequence : &[u16] = &[
 0,          2,       691,        // very nice backward pass 
 0,          2,       1112,       // pan back water  
 0,          20,       1261,       // big wide back pan color
-
+*/
 ];
 
 pub fn frame( ticks : u32, now : f32, render_frame : bool ) -> () {

@@ -10,12 +10,19 @@ out vec4 fragColor;
 
 
 const vec3 sun_dir = normalize( vec3( 1.0, 1.10, 1.0 ));
+// prenormalized to avoid having it in the script
+// const vec3 sun_dir = vec3( 0.55, 0.61, 0.56 );
 const float maximum_dist = 99999.0;
 
-vec2 water[4] = vec2[4]( normalize(vec2( 0.23, 0.6556  )), 
+vec2 water[4] = vec2[4]( normalize(vec2( 0.23, 0.65  )), 
                         normalize(vec2( 0.83, -0.26  )),
-                        normalize(vec2( 0.13, -0.826  )),
+                        normalize(vec2( 0.13, -0.83  )),
                         normalize(vec2( -0.2, 0.55  )));
+// prenormalized to avoid having it in the script
+// vec2 water[4] = vec2[4]( vec2( 0.33, 0.94  ), 
+//                         vec2( 0.95, -0.3  ),
+//                         vec2( 0.15, -0.98 ),
+//                         vec2( -0.34, 0.94  ));
 
 
 
@@ -44,39 +51,7 @@ float ground_plane_intersect( vec3 ray_dir, vec3 origin, float ground, out vec3 
 }
 
 
-float w_intersect_sphere( float max_t, vec3 ray_dir, vec3 origin, 
-    vec3 sphere, float sphere_radius2, int idx_in, 
-    out vec3 pos, out vec3 norm, out int idx ) {
-   // intersect with sphere 
-    vec3 origToSphere = sphere - origin;
-    float tCA = dot( origToSphere, ray_dir);
-    if( tCA < 0.0 ) {
-        // ray center is towards back of ray. cant intsesect
-        return max_t;
-    } else 
-    {
-        float dd = length(origToSphere);
-        float distToMidpoint2 = dd*dd-tCA*tCA;
-        if( distToMidpoint2 > sphere_radius2 ) {
-            return max_t;
-        } 
-        else {
-            float thc = sqrt(sphere_radius2-distToMidpoint2);
-            float t0 = tCA - thc;           // entry 
-            if( t0 < max_t ) {
-                pos = origin + t0*ray_dir;
-                norm = normalize( pos-sphere);
-                idx = idx_in;
-                return t0;
-            } else {
-                return max_t;
-            }
-        }
-    }
-}
-
-// For shadows we only care if there was intersection
-bool intersects_sphere( vec3 ray_dir, vec3 origin, vec3 sphere, float sphere_radius2 ) {
+bool w_intersect_sphere( vec3 ray_dir, vec3 origin, vec3 sphere, float sphere_radius2, out float ott ) {
    // intersect with sphere 
     vec3 origToSphere = sphere - origin;
     float tCA = dot( origToSphere, ray_dir);
@@ -91,87 +66,54 @@ bool intersects_sphere( vec3 ray_dir, vec3 origin, vec3 sphere, float sphere_rad
             return false;
         } 
         else {
+            float thc = sqrt(sphere_radius2-distToMidpoint2);
+            ott = tCA - thc;
             return true;
         }
     }
 }
 
-float get_height( vec2 pos, out float level, out float type ) {
+float get_height( vec2 pos, out float type ) {
     vec4 col = texture( terrain, pos/512.0  );
-    level = col.x* 5.0;
     type = col.y;
     return col.x*60.0-12.1;
 }
 
-void prep_stepper( vec3 delta, vec3 origin,
-    out float step_x, out float tDeltaX, out float tMaxX, out vec3 xNormal, 
-    out float step_z, out float tDeltaZ, out float tMaxZ, out vec3 zNormal  ) 
+void prep_stepper( vec2 delta, vec2 origin, out vec2 gstep, out vec2 tdelta, out vec2 tmax) 
 {
     // not handling the degenarate cases where numbers become infinity
     if( delta.x > 0.0 ) {
-        step_x = 1.0;
-        tDeltaX = 1.0 / delta.x;
-        tMaxX = tDeltaX * (1.0 - fract(origin.x));
+        gstep.x = 1.0;
+        tdelta.x = 1.0 / delta.x;
+        tmax.x = tdelta.x * (1.0 - fract(origin.x));
     } else {
-        step_x = -1.0;
-        tDeltaX = 1.0 / -delta.x;
-        tMaxX = tDeltaX * fract(origin.x); 
+        gstep.x = -1.0;
+        tdelta.x = 1.0 / -delta.x;
+        tmax.x = tdelta.x * fract(origin.x); 
     }
-    if( delta.z > 0.0 ) {
-        step_z = 1.0;
-        tDeltaZ = 1.0 / delta.z;
-        tMaxZ = tDeltaZ * (1.0 - fract(origin.z));
+    if( delta.y > 0.0 ) {
+        gstep.y = 1.0;
+        tdelta.y = 1.0 / delta.y;
+        tmax.y = tdelta.y * (1.0 - fract(origin.y));
     } else {
-        step_z = -1.0;
-        tDeltaZ = 1.0 / -delta.z;
-        tMaxZ = tDeltaZ * fract(origin.z); 
+        gstep.y = -1.0;
+        tdelta.y = 1.0 / -delta.y;
+        tmax.y = tdelta.y * fract(origin.y); 
     }
-    xNormal = vec3( -step_x, 0, 0);
-    zNormal = vec3( 0, 0, -step_z);
-
+//    side_normal = vec2( -gstep.x, -gstep.y);
 }
-
-// float max3 (vec3 v) {
-//   return max (max (v.x, v.y), v.z);
-// }
-
-// float min3 (vec3 v) {
-//   return min (min (v.x, v.y), v.z);
-// }
 
 void intersect_box( vec3 origin, vec3 delta, out float near, out float far ) {
-    float tmin = -1000.;
-    float tmax = 1000.;
-    if( delta.x != 0.0 ) {
-        float tx1 = ( 0. - origin.x ) / delta.x;
-        float tx2 = ( 512. - origin.x ) / delta.x;
+    float tx1 = ( 0. - origin.x ) / delta.x;
+    float tx2 = ( 512. - origin.x ) / delta.x;
+    near = min( tx1, tx2 );
+    far = max( tx1, tx2 );
 
-        tmin = max( tmin, min( tx1, tx2 ));
-        tmax = min( tmax, max( tx1, tx2 ));
-    }
-    if( delta.z != 0.0 ) {
-        float tz1 = ( 0. - origin.z ) / delta.z;
-        float tz2 = ( 512. - origin.z ) / delta.z;
-
-        tmin = max( tmin, min( tz1, tz2 ));
-        tmax = min( tmax, max( tz1, tz2 ));
-    }
-
-    near = tmin;
-    far = tmax;
+    float tz1 = ( 0. - origin.z ) / delta.z;
+    float tz2 = ( 512. - origin.z ) / delta.z;
+    near = max( near, min( tz1, tz2 ));
+    far = min( far, max( tz1, tz2 ));
 }
-
-// void intersect_box( vec3 origin, vec3 ray_dir, out float near, out float far ) {
-//     vec3 inv_ray_dir = 1.0 / ray_dir;
-
-//     vec3 t0 = ( vec3( 0., -100., 0.) - origin ) * inv_ray_dir;
-//     vec3 t1 = ( vec3( 256., 126., 256.) - origin ) * inv_ray_dir;
-// //    vec3 t1 = ( vec3( 512., 512., 512.) - origin ) * inv_ray_dir;
-//     vec3 tmin = min( t0, t1);
-//     vec3 tmax = max( t0, t1);
-//     near = max3( tmin);
-//     far = min3( tmax);
-// }
 
 bool cast_ray( vec3 origin, vec3 dest, out float t, out vec3 col, out vec3 normal, out float refrac, 
 out float type ) 
@@ -189,48 +131,31 @@ out float type )
 
     origin = origin + skip_t*delta;
 
-    float step_x, tDeltaX, tMaxX;
-    vec3 xNormal;
-    float step_z, tDeltaZ, tMaxZ;
-    vec3 zNormal;
+    vec2 tmax, tdelta, grid_step;
+    prep_stepper( delta.xz, origin.xz, grid_step, tdelta, tmax );
 
-    prep_stepper( delta, origin, step_x, tDeltaX, tMaxX, xNormal, step_z, tDeltaZ, tMaxZ, zNormal  );
-
-
-    if( isinf( tMaxX ) || isinf( tMaxZ ) ) {
+    if( isinf( tmax.x ) || isinf( tmax.y ) ) {
         return false;
     }
-    if( isinf( tDeltaX ) || isinf( tDeltaZ ) ) {
+    if( isinf( tdelta.x ) || isinf( tdelta.y ) ) {
         return false;
     }
 
-    float x = floor( origin.x );
-    float z = floor( origin.z );
-    float y = 0.0;
+    vec2 ip = floor( origin.xz );
     float next_y = origin.y;
-    float level;
-    float old_height = get_height( vec2( x, z ), level, type );
+    float old_height = get_height( ip, type );
     refrac = 0.0;
     
     for( t=0.0;t<far_t-skip_t;) {
-        if(tMaxX < tMaxZ) { 
-            t = tMaxX;
-            y = origin.y + delta.y * tMaxX;
-            tMaxX= tMaxX + tDeltaX; 
-            x= x + step_x; 
-            normal = xNormal;
-        } else 
-        { 
-            t = tMaxZ;
-            y = origin.y + delta.y * tMaxZ;
-            tMaxZ= tMaxZ + tDeltaZ; 
-            z= z + step_z; 
-            normal = zNormal;
-        } 
+        vec2 or = vec2( float(tmax.x < tmax.y), float(tmax.x >= tmax.y));
+        t = dot(tmax,or);
+        float y = origin.y + delta.y * t;
+        ip = ip + grid_step*or;
+        tmax = tmax + tdelta*or; 
+
         // check exit height
         if( old_height > y ) {
-            col = vec3( level/40., level/40., 1.0);
-            if( level <= 2.5 ){
+            if( old_height <= 27 ){
                 col = vec3( 0.2, 0.071, .01 );
                 refrac = 1.1;
             } else {
@@ -246,9 +171,9 @@ out float type )
         }
 
         // check entry height to next pos
-        old_height = get_height( vec2( x, z ), level , type);
+        old_height = get_height( ip, type);
         if( old_height > y ) {
-            if( level >= 3.5 ){
+            if( old_height >= 40 ){
                 col = vec3( 0.2, 0.171, 0.01 );
                 refrac = 1.5;
             } else {
@@ -263,6 +188,7 @@ out float type )
                 }
             }
             //t += skip_t;
+            normal = vec3( -grid_step.x*or.x, 0, -grid_step.y*or.y );
 
             return true;
         }
@@ -311,23 +237,17 @@ void main()
     // establish the 3d normalized 3d position, camera is at 0,0,0,   ray is towards screen_pos, depth
     vec3 camera_tgt_3d = vec3( screen_pos_2d, -2.0 );
     //vec3 camera_pos_3d = vec3( 0., 0., 0.);       // no need to track as it is at 0,0,0
-    float _angle = sp[ 161 ].y;
-    mat3 rot_m = mat3( cos(_angle),0,  -sin( _angle ), 
-                         0,          1,          0,
-                         sin(_angle), 0, cos(_angle) );
-
-    float _angle2 = sp[ 161 ].x;
-    mat3 tilt_m = mat3(  1,     0,       0 , 
-                        0,     cos(_angle2),-sin( _angle2 ),
-                        0,     sin(_angle2), cos(_angle2) );
-
-    float _angle3 = sp[ 161 ].z;
-    mat3 roll = mat3(  cos(_angle3),     -sin( _angle3) ,       0 , 
-                        sin(_angle3),     cos(_angle3),0 ,
-                        0,     0, 1 );
-
-
-   rot_m = rot_m * tilt_m * roll;
+    vec4 co = cos( sp[ 161 ] );         // a= co.y   c = co.x
+    vec4 si = sin( sp[ 161 ] );         // b= si.y   d = si.x
+    mat3 rot_m = mat3(  co.y,      0,     -si.y,
+                        -si.x*si.y,   co.x,      -si.x*co.y,
+                        co.x*si.y,    si.x,    co.y*co.x );
+    // no roll at the moment
+//     float _angle3 = sp[ 161 ].z;
+//     mat3 roll = mat3(  cos(_angle3),     -sin( _angle3) ,       0 , 
+//                         sin(_angle3),     cos(_angle3),0 ,
+//                         0,     0, 1 );
+//    rot_m = rot_m * tilt_m * roll;
 
     vec3 camera_translation = sp[160].xyz;
     
@@ -354,8 +274,17 @@ void main()
         float current_t = maximum_dist;
 
         //Harmonize hit flagging 
-        for( int idx=0; idx < num_spheres; idx++ ) {
-            current_t  =  w_intersect_sphere( current_t, ray_dir, origin, sp[idx*2].xyz, sp[idx*2].w, idx, pos, norm, final_idx);
+         for( int idx=0; idx < num_spheres; idx++ ) {
+            float n_t;          // For some reason I cant pass current_t as out var into the func. Somehow the compiler seems to optimize out
+                                // the preceeding assignment if I do
+            if( w_intersect_sphere( ray_dir, origin, sp[idx*2].xyz, sp[idx*2].w, n_t) ) {
+                if( n_t < current_t ) {
+                    current_t = n_t;
+                    pos = origin + current_t*ray_dir;
+                    norm = normalize( pos-sp[idx*2].xyz);
+                    final_idx = idx;
+                }
+            }
         }
         if( final_idx != -1 ) {
             // hit a sphere. tentative data
@@ -449,8 +378,7 @@ void main()
         {
             for( int idx=0; idx < num_spheres; idx++ ) 
             {
-                if( intersects_sphere( sun_dir, pos, sp[idx*2].xyz, sp[idx*2].w ) ) 
-                {
+                if( w_intersect_sphere( sun_dir, pos, sp[idx*2].xyz, sp[idx*2].w, grid_t ) )  {
                     in_shade = true;
                     break;
                 }
