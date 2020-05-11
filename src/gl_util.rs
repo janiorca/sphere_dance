@@ -8,11 +8,11 @@ pub fn program_from_shaders( vtx_shader : gl::GLuint, frag_shader : gl::GLuint, 
         gl::AttachShader(program_id, vtx_shader );
         gl::AttachShader(program_id, frag_shader );
         gl::LinkProgram(program_id);
-        gl::DetachShader(program_id, vtx_shader );
-        gl::DetachShader(program_id, frag_shader );
-
+        
         #[cfg(feature = "logger")]
         {
+            gl::DetachShader(program_id, vtx_shader );
+            gl::DetachShader(program_id, frag_shader );
             gl::GetProgramiv(program_id,  gl::LINK_STATUS, &mut success);
             if success == 0 {
                 gl::GetProgramInfoLog( program_id, error_dest.len() as i32,  0 as *mut _, error_dest.as_mut_ptr() as *mut u8 );

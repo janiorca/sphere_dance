@@ -40,13 +40,11 @@ vec3 water_ripple( vec3 pos ) {
     return vec3( intensity, 0.0, intensity2 );
 }
 
-float ground_plane_intersect( vec3 ray_dir, vec3 origin, float ground, out vec3 pos, out vec3 norm ) {
+float ground_plane_intersect( vec3 ray_dir, vec3 origin, float ground ) {
     if( ray_dir.y >= 0.0 ) {
         return maximum_dist;
     }
     float t = ( ground-origin.y ) /  ray_dir.y; 
-    norm = vec3( 0.0, 1.0f, 0.0f );
-    pos = origin + ray_dir*t;
     return t;
 }
 
@@ -79,30 +77,6 @@ float get_height( vec2 pos, out float type ) {
     return col.x*60.0-12.1;
 }
 
-void prep_stepper( vec2 delta, vec2 origin, out vec2 gstep, out vec2 tdelta, out vec2 tmax) 
-{
-    // not handling the degenarate cases where numbers become infinity
-    if( delta.x > 0.0 ) {
-        gstep.x = 1.0;
-        tdelta.x = 1.0 / delta.x;
-        tmax.x = tdelta.x * (1.0 - fract(origin.x));
-    } else {
-        gstep.x = -1.0;
-        tdelta.x = 1.0 / -delta.x;
-        tmax.x = tdelta.x * fract(origin.x); 
-    }
-    if( delta.y > 0.0 ) {
-        gstep.y = 1.0;
-        tdelta.y = 1.0 / delta.y;
-        tmax.y = tdelta.y * (1.0 - fract(origin.y));
-    } else {
-        gstep.y = -1.0;
-        tdelta.y = 1.0 / -delta.y;
-        tmax.y = tdelta.y * fract(origin.y); 
-    }
-//    side_normal = vec2( -gstep.x, -gstep.y);
-}
-
 void intersect_box( vec3 origin, vec3 delta, out float near, out float far ) {
     float tx1 = ( 0. - origin.x ) / delta.x;
     float tx2 = ( 512. - origin.x ) / delta.x;
@@ -115,12 +89,9 @@ void intersect_box( vec3 origin, vec3 delta, out float near, out float far ) {
     far = min( far, max( tz1, tz2 ));
 }
 
-bool cast_ray( vec3 origin, vec3 dest, out float t, out vec3 col, out vec3 normal, out float refrac, 
-out float type ) 
+bool cast_ray( vec3 origin, vec3 delta, out float t, out vec3 col, out vec3 normal, out float refrac, out float type ) 
 {
     float near_t, far_t;
-    vec3 delta = dest - origin;
-
     intersect_box( origin,delta, near_t, far_t );
 
     if( far_t < near_t  ) {
@@ -128,16 +99,15 @@ out float type )
     }
 
     float skip_t =  max( 0., near_t );
-
     origin = origin + skip_t*delta;
 
+    // Setup stepper vars
     vec2 tmax, tdelta, grid_step;
-    prep_stepper( delta.xz, origin.xz, grid_step, tdelta, tmax );
-
-    if( isinf( tmax.x ) || isinf( tmax.y ) ) {
-        return false;
-    }
-    if( isinf( tdelta.x ) || isinf( tdelta.y ) ) {
+    grid_step = sign( delta.xz );
+    tdelta = 1.0 / delta.xz * grid_step;         // inverts the sign for negs, making it equivalent to abs
+    tmax = tdelta * (max(grid_step,0) - fract(origin.xz)*grid_step);
+    // Seems to be increasing the size of the final
+    if( any( isinf( tmax ) || isinf( tdelta ) ) ) {
         return false;
     }
 
@@ -189,7 +159,6 @@ out float type )
             }
             //t += skip_t;
             normal = vec3( -grid_step.x*or.x, 0, -grid_step.y*or.y );
-
             return true;
         }
     }
@@ -217,10 +186,7 @@ vec3 extinction( float dist ) {
 
 vec3 in_scatter( float dist, float cos_angle ) {
     float rayleigh_scatter = .0003 / 16.0*3.14159* ( 1.0 + cos_angle*cos_angle ); 
-
-    vec3 rayleigh_coeff =         vec3( 1.0 / ( absorption_coeff.x + scattering_coeff.x ) * ( 1.0-exp( -dist*( scattering_coeff.x ) ) ),
-                                        1.0 / ( absorption_coeff.y + scattering_coeff.y ) * ( 1.0-exp( -dist*( scattering_coeff.y ) ) ),
-                                        1.0 / ( absorption_coeff.z + scattering_coeff.z ) * ( 1.0-exp( -dist*( scattering_coeff.z ) ) ) );
+    vec3 rayleigh_coeff  = 1.0 / ( absorption_coeff + scattering_coeff ) * ( 1.0-exp( -dist*( scattering_coeff ) ) );
 
     float mie_g = 0.476;
     vec3 mie_scatter =  vec3( 0.0020, 0.0008, 0.0002 ) * ( 1.0 - mie_g )*( 1.0 - mie_g ) / ( 4.0 * 3.14159 * pow( ( 1.0 + mie_g*mie_g  - 2.0 * mie_g *cos_angle ), 1.5 ) ); 
@@ -270,11 +236,9 @@ void main()
         vec3 diffuseCol;
         float refractive_index;
         float reflectance = 0.0;
-        int final_idx = -1;
         float current_t = maximum_dist;
 
-        //Harmonize hit flagging 
-         for( int idx=0; idx < num_spheres; idx++ ) {
+        for( int idx=0; idx < num_spheres; idx++ ) {
             float n_t;          // For some reason I cant pass current_t as out var into the func. Somehow the compiler seems to optimize out
                                 // the preceeding assignment if I do
             if( w_intersect_sphere( ray_dir, origin, sp[idx*2].xyz, sp[idx*2].w, n_t) ) {
@@ -282,26 +246,19 @@ void main()
                     current_t = n_t;
                     pos = origin + current_t*ray_dir;
                     norm = normalize( pos-sp[idx*2].xyz);
-                    final_idx = idx;
+                    diffuseCol = sp[idx*2+1].xyz;  // vec3( 0.02, .02, 0.02 );
+                    refractive_index =  sp[idx*2+1].w;       // 1.3171;
+                    reflectance = fresnel( refractive_index, norm, ray_dir);
                 }
             }
         }
-        if( final_idx != -1 ) {
-            // hit a sphere. tentative data
-            diffuseCol = sp[final_idx*2+1].xyz;  // vec3( 0.02, .02, 0.02 );
-            refractive_index =  sp[final_idx*2+1].w;       // 1.3171;
-            reflectance = fresnel( refractive_index, norm, ray_dir);
-            new_ray_dir = reflect( ray_dir, norm );
-        }
             
         //Check if we hit the sceneary
-        vec3 current_dest = origin + ray_dir;
         float grid_t;
         vec3 diffuseCol2;
         vec3 norm2;
         float type;
-        //float refractive_index2;
-        if( cast_ray(origin, current_dest, grid_t, diffuseCol2, norm2, refractive_index, type ) ) {
+        if( cast_ray(origin, ray_dir, grid_t, diffuseCol2, norm2, refractive_index, type ) ) {
             // hit the scenery, if it is closer than the sphere this overrides
             if( grid_t < current_t ) {
                 if( type == 1.0 ) {
@@ -309,17 +266,12 @@ void main()
                     float threshold = (0.6335-0.01)*60.0-(11.5);
                     vec3 cell_loc = vec3( 130.0+256.0, threshold, 191.0+256.0 );
                     vec3 new_origin = (origin-cell_loc)*512.0;
-                    vec3 new_dest = (current_dest-cell_loc)*512.0;
+                    //vec3 new_dest = (current_dest-cell_loc)*512.0;
                     float mini_grid_t;
-                    if( cast_ray(new_origin, new_dest, mini_grid_t, diffuseCol2, norm2, refractive_index, type ) ) {
+                    if( cast_ray(new_origin, ray_dir*512, mini_grid_t, diffuseCol2, norm2, refractive_index, type ) ) {
                         current_t = grid_t+ mini_grid_t/512.0;
                         diffuseCol = diffuseCol2;
                         diffuseCol.b = diffuseCol.b*2.0;
-
-                        norm = norm2;
-                        pos = origin + ray_dir * current_t*0.9999;
-                        reflectance = fresnel( refractive_index, norm, ray_dir);
-                        new_ray_dir = reflect( normalize( ray_dir ), norm );
                     } else {
                         // nothing was hit. Carry on with previous direction
                         current_t = grid_t *2.02;
@@ -329,35 +281,30 @@ void main()
                 } else {
                     current_t = grid_t;
                     diffuseCol = diffuseCol2;
-                    norm = norm2;
-                    pos = origin + ray_dir * current_t*0.9999;
-                    reflectance = fresnel( refractive_index, norm, ray_dir);
-                    new_ray_dir = reflect( normalize( ray_dir ), norm );
                 }
+                norm = norm2;
+                pos = origin + ray_dir * current_t*0.9999;
+                reflectance = fresnel( refractive_index, norm, ray_dir);
             }
         }
 
-        vec3 pos2;
-        float g_t = ground_plane_intersect( ray_dir, origin , -0.5, pos2, norm2 );
-        if( g_t <= current_t ) {
-            pos = origin + ray_dir * g_t*0.9999;
-            norm = norm2 + water_ripple( pos )*0.01;
+
+        grid_t = ground_plane_intersect( ray_dir, origin , -0.5 );
+        if( grid_t <= current_t ) {
+            pos = origin + ray_dir * grid_t*0.9999;
+            norm = vec3( 0.0, 1.0f, 0.0f ) + water_ripple( pos )*0.01;
             norm = normalize(norm);
 
             reflectance = fresnel( 1.1, norm, ray_dir);
-            new_ray_dir = reflect( ray_dir, norm );
-            final_idx = 0;
 
             //bend and rethrow ray underwater
             vec3 uw_dir = refract( ray_dir, norm, 1.-reflectance);
-            float uw_t;
             diffuseCol = vec3( 0.05, 0.05, 0.15 );                
-            if( cast_ray(pos, pos+uw_dir*100.0, uw_t, diffuseCol2, norm2, refractive_index, type ) ) {
-                diffuseCol += diffuseCol2 * exp( -uw_t*40.0 );//*-0.25 ) ); 
+            if( cast_ray(pos, uw_dir*100, grid_t, diffuseCol2, norm2, refractive_index, type ) ) {
+                diffuseCol += diffuseCol2 * exp( -grid_t*40.0 );//*-0.25 ) ); 
             }
-            final_idx = 0;
          } 
-
+        new_ray_dir = reflect( normalize( ray_dir ), norm );
 
         vec3 point_color = vec3( 0, 0, 0 );
         if( current_t >= maximum_dist ) {
@@ -369,8 +316,7 @@ void main()
         // // light the point
         // Is the light shadowed
         bool in_shade = false;
-        vec3 sun_pos = pos + sun_dir*5.0;
-        if( cast_ray( pos, sun_pos, grid_t, diffuseCol2, norm2, refractive_index, type ) ) 
+        if( cast_ray( pos, sun_dir, grid_t, diffuseCol2, norm2, refractive_index, type ) ) 
         {
             in_shade = true;
         }

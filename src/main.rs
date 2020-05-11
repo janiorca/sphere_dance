@@ -133,18 +133,11 @@ fn show_error( message : *const i8 ) {
 fn create_window( ) -> ( HWND, HDC ) {
     unsafe {
         let hinstance = GetModuleHandleA( 0 as *const i8 );
-        let wnd_class = WNDCLASSA {
-            style : CS_OWNDC | CS_HREDRAW | CS_VREDRAW,     
-            lpfnWndProc : Some( window_proc ),
-            hInstance : hinstance,							// The instance handle for our application which we can retrieve by calling GetModuleHandleW.
-            lpszClassName : "MyClass\0".as_ptr() as *const i8,
-            cbClsExtra : 0,									
-            cbWndExtra : 0,
-            hIcon: 0 as HICON,
-            hCursor: 0 as HICON,
-            hbrBackground: 0 as HBRUSH,
-            lpszMenuName: 0 as *const i8,
-        };
+        let mut wnd_class : WNDCLASSA = core::mem::zeroed();
+        wnd_class.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
+        wnd_class.lpfnWndProc = Some( window_proc );
+        wnd_class.hInstance = hinstance;							// The instance handle for our application which we can retrieve by calling GetModuleHandleW.
+        wnd_class.lpszClassName = "MyClass\0".as_ptr() as *const i8;
         RegisterClassA( &wnd_class );
 
         // More info: https://msdn.microsoft.com/en-us/library/windows/desktop/ms632680(v=vs.85).aspx
@@ -277,7 +270,7 @@ pub extern "system" fn mainCRTStartup() {
         if !handle_message( window ) {
             break;
         }
-        intro::frame( 1, time, true );
+        intro::frame( time );
         unsafe{ SwapBuffers(hdc); }
         time += 1.0 / 60.0f32;            
     }

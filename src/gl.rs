@@ -86,11 +86,13 @@ static LOAD_DESC: &'static [(u16, &'static str)] = &[
     #[cfg(feature = "logger")]
     (GetProgramivIdx, "glGetProgramiv\0"),
     (AttachShaderIdx, "glAttachShader\0"),    
+    #[cfg(feature = "logger")]
     (DetachShaderIdx, "glDetachShader\0"),
+    
     (UseProgramIdx, "glUseProgram\0"),
 
     (LinkProgramIdx, "glLinkProgram\0"),
-    (ClearBufferfvIdx, "glClearBufferfv\0"),
+//    (ClearBufferfvIdx, "glClearBufferfv\0"),
     (CreateShaderIdx, "glCreateShader\0"),
     (ShaderSourceIdx, "glShaderSource\0"),
     (CompileShaderIdx, "glCompileShader\0"),
