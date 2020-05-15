@@ -16,7 +16,8 @@ mod random;
 
 use core::mem::MaybeUninit;
 use core::panic::PanicInfo;
-    
+
+
 use winapi::um::wingdi::{
     ChoosePixelFormat,
     SwapBuffers,
@@ -24,6 +25,7 @@ use winapi::um::wingdi::{
     wglCreateContext,
     SetPixelFormat,
 
+    DEVMODEA,
     PFD_TYPE_RGBA,
     PFD_DOUBLEBUFFER,
     PFD_SUPPORT_OPENGL,
@@ -32,6 +34,7 @@ use winapi::um::wingdi::{
 };
 
 use winapi::shared::minwindef::{
+    HINSTANCE,
     LRESULT,
     LPARAM,
     LPVOID,
@@ -70,6 +73,8 @@ use winapi::um::winuser::{
     CW_USEDEFAULT,
     PM_REMOVE, 
     WS_OVERLAPPEDWINDOW,
+    WS_MAXIMIZE,
+    WS_POPUP,
     WS_VISIBLE,
 };
 
@@ -122,6 +127,7 @@ pub unsafe extern "system" fn window_proc(hwnd: HWND,
     return 0;
 }
 
+#[cfg(feature = "logger")]
 fn show_error( message : *const i8 ) {
     unsafe{
         MessageBoxA(0 as HWND, message, "Window::create\0".as_ptr() as *const i8, MB_ICONERROR);
@@ -132,28 +138,54 @@ fn show_error( message : *const i8 ) {
 // https://mariuszbartosik.com/opengl-4-x-initialization-in-windows-without-a-framework/
 fn create_window( ) -> ( HWND, HDC ) {
     unsafe {
-        let hinstance = GetModuleHandleA( 0 as *const i8 );
-        let mut wnd_class : WNDCLASSA = core::mem::zeroed();
-        wnd_class.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
-        wnd_class.lpfnWndProc = Some( window_proc );
-        wnd_class.hInstance = hinstance;							// The instance handle for our application which we can retrieve by calling GetModuleHandleW.
-        wnd_class.lpszClassName = "MyClass\0".as_ptr() as *const i8;
-        RegisterClassA( &wnd_class );
+        let h_wnd : HWND;
 
-        // More info: https://msdn.microsoft.com/en-us/library/windows/desktop/ms632680(v=vs.85).aspx
-        let h_wnd = CreateWindowExA(
-            0,
-            //WS_EX_APPWINDOW | WS_EX_WINDOWEDGE,                     // dwExStyle 
-            "MyClass\0".as_ptr() as *const i8,		                // class we registered.
-            "GLWIN\0".as_ptr() as *const i8,						// title
-            WS_OVERLAPPEDWINDOW | WS_VISIBLE,	// dwStyle
-            CW_USEDEFAULT, CW_USEDEFAULT, 1280, 720,	// size and position
-//            CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,	// size and position
-            0 as HWND,               	// hWndParent
-            0 as HMENU,					// hMenu
-            hinstance,                  // hInstance
-            0 as LPVOID );				// lpParam
-        
+        #[cfg(feature = "fullscreen")]
+        {
+            let mut devMode : DEVMODEA = core::mem::zeroed();
+            devMode.dmSize = core::mem::size_of::<DEVMODEA>() as u16;
+            devMode.dmFields = winapi::um::wingdi::DM_BITSPERPEL | winapi::um::wingdi::DM_PELSWIDTH | winapi::um::wingdi::DM_PELSHEIGHT;
+            devMode.dmBitsPerPel = 32;
+            devMode.dmPelsWidth  = 1280;
+            devMode.dmPelsHeight = 720;
+            if winapi::um::winuser::ChangeDisplaySettingsA(&mut devMode, winapi::um::winuser::CDS_FULLSCREEN)!= winapi::um::winuser::DISP_CHANGE_SUCCESSFUL {
+                return ( 0 as HWND, 0 as HDC ) ;
+            }
+            winapi::um::winuser::ShowCursor( 0 );            
+
+            h_wnd = CreateWindowExA(
+                0,
+                "static\0".as_ptr() as *const i8,		                // class we registered.
+                "GLWIN\0".as_ptr() as *const i8,						// title
+                WS_POPUP | WS_VISIBLE | WS_MAXIMIZE, 0, 0, 0, 0,	// size and position
+                0 as HWND,               	// hWndParent
+                0 as HMENU,					// hMenu
+                0 as HINSTANCE,             // hInstance
+                0 as LPVOID );				// lpParam
+        }
+
+        #[cfg(not(feature = "fullscreen"))]
+        {
+            let hinstance = GetModuleHandleA( 0 as *const i8 );
+            let mut wnd_class : WNDCLASSA = core::mem::zeroed();
+            wnd_class.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
+            wnd_class.lpfnWndProc = Some( window_proc );
+            wnd_class.hInstance = hinstance;							// The instance handle for our application which we can retrieve by calling GetModuleHandleW.
+            wnd_class.lpszClassName = "MyClass\0".as_ptr() as *const i8;
+            RegisterClassA( &wnd_class );
+    
+            h_wnd = CreateWindowExA(
+                0,
+                //WS_EX_APPWINDOW | WS_EX_WINDOWEDGE,                     // dwExStyle 
+                "MyClass\0".as_ptr() as *const i8,		                // class we registered.
+                "GLWIN\0".as_ptr() as *const i8,						// title
+                WS_OVERLAPPEDWINDOW | WS_VISIBLE,	// dwStyle
+                CW_USEDEFAULT, CW_USEDEFAULT, 1280, 720,	// size and position
+                0 as HWND,               	// hWndParent
+                0 as HMENU,					// hMenu
+                hinstance,                  // hInstance
+                0 as LPVOID );				// lpParam
+        }
         let h_dc : HDC = GetDC(h_wnd);        // Device Context            
 
         let mut pfd : PIXELFORMATDESCRIPTOR = core::mem::zeroed();
@@ -206,6 +238,7 @@ fn create_window( ) -> ( HWND, HDC ) {
 
 // Create message handling function with which to link to hook window to Windows messaging system
 // More info: https://msdn.microsoft.com/en-us/library/windows/desktop/ms644927(v=vs.85).aspx
+#[cfg(feature = "logger")]
 fn handle_message( _window : HWND ) -> bool {
     unsafe {
        let mut msg : MSG = MaybeUninit::uninit().assume_init();
@@ -267,13 +300,24 @@ pub extern "system" fn mainCRTStartup() {
     unsafe{ log!("Number 3\n", 12.3, 54.0, 12.09); };
 
     loop {
-        if !handle_message( window ) {
-            break;
+        #[cfg(feature = "logger")]
+        {
+            if !handle_message( window ) {
+                break;
+            }        
         }
+
+        unsafe{
+            if winapi::um::winuser::GetAsyncKeyState(winapi::um::winuser::VK_ESCAPE) != 0 {
+                break;
+            }
+        }
+
         intro::frame( time );
         unsafe{ SwapBuffers(hdc); }
         time += 1.0 / 60.0f32;            
     }
+
     unsafe{
         // Tying to exit normally seems to crash after certain APIs functions have been called. ( Like ChoosePixelFormat )
         winapi::um::processthreadsapi::ExitProcess(0);

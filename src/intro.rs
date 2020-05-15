@@ -281,7 +281,7 @@ static mut play_pos : usize = 0;
 fn update_world() {
     
     unsafe{
-        if play_pos >= 21*2 && play_pos <= 33*2 {
+        if play_pos >= 21 && play_pos <= 33 {
             camera_mode = 1;
         } else {
             camera_mode = 0;

@@ -6,6 +6,7 @@ edition = "2018"
 
 [features]
 logger = []
+fullscreen = []
 
 [profile.release]
 lto = true 
@@ -23,3 +24,4 @@ panic = "abort"
 [dependencies]
 winapi = { version = "0.3.8", features = ["winuser", "libloaderapi", "processthreadsapi", "fileapi", "handleapi" ] }
 #winapi = { version = "0.3.8", features = ["winuser", "libloaderapi", "processthreadsapi" ] }
+

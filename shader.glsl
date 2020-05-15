@@ -10,7 +10,7 @@ out vec4 fragColor;
 
 
 const vec3 sun_dir = normalize( vec3( 1.0, 1.10, 1.0 ));
-// prenormalized to avoid having it in the script
+// prenormalized to avoid having it in the script -> made it worse?!
 // const vec3 sun_dir = vec3( 0.55, 0.61, 0.56 );
 const float maximum_dist = 99999.0;
 
@@ -39,15 +39,6 @@ vec3 water_ripple( vec3 pos ) {
     }
     return vec3( intensity, 0.0, intensity2 );
 }
-
-float ground_plane_intersect( vec3 ray_dir, vec3 origin, float ground ) {
-    if( ray_dir.y >= 0.0 ) {
-        return maximum_dist;
-    }
-    float t = ( ground-origin.y ) /  ray_dir.y; 
-    return t;
-}
-
 
 bool w_intersect_sphere( vec3 ray_dir, vec3 origin, vec3 sphere, float sphere_radius2, out float ott ) {
    // intersect with sphere 
@@ -78,15 +69,10 @@ float get_height( vec2 pos, out float type ) {
 }
 
 void intersect_box( vec3 origin, vec3 delta, out float near, out float far ) {
-    float tx1 = ( 0. - origin.x ) / delta.x;
-    float tx2 = ( 512. - origin.x ) / delta.x;
-    near = min( tx1, tx2 );
-    far = max( tx1, tx2 );
-
-    float tz1 = ( 0. - origin.z ) / delta.z;
-    float tz2 = ( 512. - origin.z ) / delta.z;
-    near = max( near, min( tz1, tz2 ));
-    far = min( far, max( tz1, tz2 ));
+    vec3 t1 = (vec3( 0. ) - origin )/delta;
+    vec3 t2 = (vec3( 512. ) - origin )/delta;
+    near = max( min( t1.x, t2.x ), min( t1.z, t2.z ) );
+    far = min( max( t1.x, t2.x ), max( t1.z, t2.z ) );
 }
 
 bool cast_ray( vec3 origin, vec3 delta, out float t, out vec3 col, out vec3 normal, out float refrac, out float type ) 
@@ -125,13 +111,8 @@ bool cast_ray( vec3 origin, vec3 delta, out float t, out vec3 col, out vec3 norm
 
         // check exit height
         if( old_height > y ) {
-            if( old_height <= 27 ){
-                col = vec3( 0.2, 0.071, .01 );
-                refrac = 1.1;
-            } else {
-                col = vec3( 0.8, 0.01, 0.01 );
-                refrac = 1.5;
-            }
+            col = vec3( 0.2, 0.071, .01 ) + step( 27, old_height ) * vec3( 0.6, -0.06, 0 );
+            refrac = 1.2;
             normal = vec3( 0, 1.0, 0 );
 
             // work out precise t ( maybe precision errors when delta.y is near 0)
@@ -143,13 +124,8 @@ bool cast_ray( vec3 origin, vec3 delta, out float t, out vec3 col, out vec3 norm
         // check entry height to next pos
         old_height = get_height( ip, type);
         if( old_height > y ) {
-            if( old_height >= 40 ){
-                col = vec3( 0.2, 0.171, 0.01 );
-                refrac = 1.5;
-            } else {
-                col = vec3( 0.2, 0.2, 0.2 );
-                refrac =1.5;
-            }
+            refrac =1.5;
+            col = vec3( .2, .2, .2 ) + step( 40, old_height ) * vec3( 0., -.03, -.1 );
 
             if( type == 1.0 ) {
                 float threshold = (0.6335-0.01)*60.0 - 12.1;
@@ -169,7 +145,7 @@ bool cast_ray( vec3 origin, vec3 delta, out float t, out vec3 col, out vec3 norm
 float fresnel( float n2, vec3 normal, vec3 incident )
 {
     // Schlick aproximation
-    float r0 = (1.0-n2) / (1.0+n2);
+    float r0 = (1.0-n2) / (1.0+n2);     // r0 could be precalced. Fresnel is always with respect to air
     r0 *= r0;
     float cosX = -dot(normal, incident);
     float x = 1.0-cosX;
@@ -201,7 +177,7 @@ void main()
     // calculate normalized screen pos with center at 0,0 extending width/height,1 
     vec2 screen_pos_2d = 2.0*(gl_FragCoord.xy/height) - vec2( width/height, 1.0 );
     // establish the 3d normalized 3d position, camera is at 0,0,0,   ray is towards screen_pos, depth
-    vec3 camera_tgt_3d = vec3( screen_pos_2d, -2.0 );
+//    vec3 camera_tgt_3d = vec3( screen_pos_2d, -2.0 );
     //vec3 camera_pos_3d = vec3( 0., 0., 0.);       // no need to track as it is at 0,0,0
     vec4 co = cos( sp[ 161 ] );         // a= co.y   c = co.x
     vec4 si = sin( sp[ 161 ] );         // b= si.y   d = si.x
@@ -214,20 +190,18 @@ void main()
 //                         sin(_angle3),     cos(_angle3),0 ,
 //                         0,     0, 1 );
 //    rot_m = rot_m * tilt_m * roll;
-
-    vec3 camera_translation = sp[160].xyz;
     
     // vec3 origin = rot_m*camera_pos_3d; no need to rotate origin, Its at 0,0,0
-    vec3 dest = rot_m*camera_tgt_3d;
+    vec3 dest = rot_m*vec3( screen_pos_2d, -2.0 );
+//    vec3 dest = rot_m*camera_tgt_3d;
 
-    //    origin += camera_translation;
-    vec3 origin = camera_translation;
-    dest += camera_translation;
+    vec3 origin = sp[160].xyz;      // camera at translated origin
+    dest += origin;
 
     vec3 ray_dir = normalize( dest - origin );
 
     float contribution = 1.0;
-    vec3 final_color = vec3( 0,0,0);
+    vec3 final_color = vec3( 0);
 
     for( int bounce =2; bounce >0 ; bounce -- ) {
         vec3 new_ray_dir;
@@ -264,9 +238,7 @@ void main()
                 if( type == 1.0 ) {
                     // rethrow ray for holo
                     float threshold = (0.6335-0.01)*60.0-(11.5);
-                    vec3 cell_loc = vec3( 130.0+256.0, threshold, 191.0+256.0 );
-                    vec3 new_origin = (origin-cell_loc)*512.0;
-                    //vec3 new_dest = (current_dest-cell_loc)*512.0;
+                    vec3 new_origin = (origin-vec3( 130.0+256.0, threshold, 191.0+256.0 ))*512.0;
                     float mini_grid_t;
                     if( cast_ray(new_origin, ray_dir*512, mini_grid_t, diffuseCol2, norm2, refractive_index, type ) ) {
                         current_t = grid_t+ mini_grid_t/512.0;
@@ -288,9 +260,8 @@ void main()
             }
         }
 
-
-        grid_t = ground_plane_intersect( ray_dir, origin , -0.5 );
-        if( grid_t <= current_t ) {
+        grid_t = ( -0.5-origin.y ) /  ray_dir.y;//   ground_plane_intersect( ray_dir, origin , -0.5 );
+        if( ray_dir.y < 0.0 && grid_t <= current_t ) {
             pos = origin + ray_dir * grid_t*0.9999;
             norm = vec3( 0.0, 1.0f, 0.0f ) + water_ripple( pos )*0.01;
             norm = normalize(norm);
@@ -301,25 +272,19 @@ void main()
             vec3 uw_dir = refract( ray_dir, norm, 1.-reflectance);
             diffuseCol = vec3( 0.05, 0.05, 0.15 );                
             if( cast_ray(pos, uw_dir*100, grid_t, diffuseCol2, norm2, refractive_index, type ) ) {
-                diffuseCol += diffuseCol2 * exp( -grid_t*40.0 );//*-0.25 ) ); 
+                diffuseCol += diffuseCol2 * exp( -grid_t*40.0 );
             }
          } 
         new_ray_dir = reflect( normalize( ray_dir ), norm );
 
-        vec3 point_color = vec3( 0, 0, 0 );
         if( current_t >= maximum_dist ) {
-            point_color += in_scatter( current_t, dot( sun_dir,ray_dir) );
-            final_color += point_color * contribution;
+            final_color += in_scatter( current_t, dot( sun_dir,ray_dir) ) * contribution;
             break;
         }
 
         // // light the point
         // Is the light shadowed
-        bool in_shade = false;
-        if( cast_ray( pos, sun_dir, grid_t, diffuseCol2, norm2, refractive_index, type ) ) 
-        {
-            in_shade = true;
-        }
+        bool in_shade = cast_ray( pos, sun_dir, grid_t, diffuseCol2, norm2, refractive_index, type );
         if( !in_shade ) 
         {
             for( int idx=0; idx < num_spheres; idx++ ) 
@@ -331,32 +296,26 @@ void main()
             }                
         }
 
+        // reusing diffusecol2 for poitn col to avoid declaring extra var
         if( !in_shade)
         {
-            vec3 reflectedLight = reflect( -sun_dir, norm );
-            vec3 toCamera = -ray_dir;
             float diffuse = dot( sun_dir, norm );
-
-            vec3 halfway = normalize( toCamera + sun_dir );
+            vec3 halfway = normalize( sun_dir-ray_dir );        // halfwar between vectors pointing towards camera and sun
             float specular = pow( dot( norm, halfway ), 121.0 );
-        
             specular = clamp( specular, 0.0, 1.0 );
-
-            vec3 fragDiffuse = diffuseCol * diffuse;
-            point_color += vec3(specular,specular,specular) + fragDiffuse;
+            diffuseCol2 = vec3(specular) + diffuseCol * diffuse;
         } else {
-            point_color += diffuseCol* 0.02;
+            diffuseCol2 = diffuseCol* 0.02;
         }
         // attenuate
-        point_color *= extinction( current_t );
-        point_color += in_scatter( current_t, dot( sun_dir,ray_dir) );
+        diffuseCol2 *= extinction( current_t );
+        diffuseCol2 += in_scatter( current_t, dot( sun_dir,ray_dir) );
 
-        final_color += point_color * contribution * ( 1.0 - reflectance );
+        final_color += diffuseCol2 * contribution * ( 1.0 - reflectance );
         contribution = contribution * reflectance;
         ray_dir = new_ray_dir;
         origin = pos;
 
     }
-    vec3 fragFinal = pow( final_color, vec3(1.0 / 2.2) );
-    fragColor = vec4(fragFinal, 1.0);
+    fragColor = vec4( pow( final_color, vec3(1.0 / 2.2) ), 1. );
 }
