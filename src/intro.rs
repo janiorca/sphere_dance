@@ -142,13 +142,6 @@ pub fn prepare() -> () {
      gl_Position = vec4(Pos, 1.0);
     }\0";
 
-    let vtx_coords : [ [ gl::GLfloat; 3 ]; 4 ] = [
-        [ -1.0, -1.0, 0.0 ],
-        [ 1.0, -1.0, 0.0 ],
-        [ -1.0,  1.0, 0.0 ],
-        [ 1.0,  1.0, 0.0 ],
-     ];
-    
     let spheres : &mut[ [ f32; 4]; (num_spheres+sphere_extras)*2];  
     unsafe{
         spheres  = &mut global_spheres;
@@ -249,18 +242,6 @@ pub fn prepare() -> () {
 
     let mut vertex_buffer_id : gl::GLuint = 0;
     unsafe{
-        // Generate 1 buffer, put the resulting identifier in vertexbuffer
-        gl::GenBuffers(1, &mut vertex_buffer_id);
-        // one vertex array to hold the vertex and its attributes
-        gl::GenVertexArrays(1, &mut vertex_array_id );
-        gl::BindVertexArray(vertex_array_id);
-        // bind the buffer and load the vertices
-        gl::BindBuffer(gl::ARRAY_BUFFER, vertex_buffer_id);
-        gl::BufferData( gl::ARRAY_BUFFER, size_of::<gl::GLfloat>() as isize * 3 * 4, vtx_coords.as_ptr() as *const gl::CVoid, gl::STATIC_DRAW);
-        // enable and define vertex attributes 
-        gl::EnableVertexAttribArray(0); // this is "layout (location = 0)" in vertex shader
-        gl::VertexAttribPointer( 0,  3, gl::FLOAT, gl::FALSE, 3 * size_of::<gl::GLfloat>() as gl::GLint, 0 as *const CVoid );    
-
         // Create the map texture
         gl::GenTextures( 1, &mut tex_buffer_id );
         gl::ActiveTexture(gl::TEXTURE0);
@@ -494,14 +475,12 @@ pub fn frame( now : f32 ) -> () {
     unsafe{
         gl::UseProgram(shader_prog);
 
-//            let time_loc : i32 = gl::GetUniformLocation(shader_prog, "e\0".as_ptr());
         let time_loc : i32 = gl::GetUniformLocation(shader_prog, "iTime\0".as_ptr());
         gl::Uniform1f(time_loc, now );          //time
 
         let shperes_loc : i32 = gl::GetUniformLocation(shader_prog, "sp\0".as_ptr());
         gl::Uniform4fv(shperes_loc, (num_spheres+sphere_extras) as i32 * 2, transmute::<_,*const gl::GLfloat>( global_spheres.as_ptr() ) );
 
-        gl::BindVertexArray(vertex_array_id);
-        gl::DrawArrays( gl::TRIANGLE_STRIP, 0, 4 );
+        gl::Recti( -1, -1, 1, 1 );
     }
 }
