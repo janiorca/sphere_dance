@@ -55,6 +55,7 @@ const CompileShaderIdx: u16 = 73;
 const CreateShaderIdx: u16 = 101;
 const DetachShaderIdx: u16 = 128;
 const DrawArraysIdx: u16 = 135;
+const RectiIdx: u16 = 136;
 const EnableVertexAttribArrayIdx: u16 = 157;
 const GenBuffersIdx: u16 = 175;
 const GenTexturesIdx: u16 = 183;
@@ -79,7 +80,9 @@ const wglSwapIntervalIdx: u16 = 695;
 static LOAD_DESC: &'static [(u16, &'static str)] = &[
 
     ( wglSwapIntervalIdx, "wglSwapIntervalEXT\0" ),
-    (DrawArraysIdx, "glDrawArrays\0"),
+//    (DrawArraysIdx, "glDrawArrays\0"),
+    (RectiIdx, "glRecti\0"),
+
 
     // Program functions
     (CreateProgramIdx, "glCreateProgram\0"),
@@ -92,7 +95,6 @@ static LOAD_DESC: &'static [(u16, &'static str)] = &[
     (UseProgramIdx, "glUseProgram\0"),
 
     (LinkProgramIdx, "glLinkProgram\0"),
-//    (ClearBufferfvIdx, "glClearBufferfv\0"),
     (CreateShaderIdx, "glCreateShader\0"),
     (ShaderSourceIdx, "glShaderSource\0"),
     (CompileShaderIdx, "glCompileShader\0"),
@@ -103,15 +105,6 @@ static LOAD_DESC: &'static [(u16, &'static str)] = &[
     (GetShaderInfoLogIdx, "glGetShaderInfoLog\0"),
     #[cfg(feature = "logger")]
     (GetProgramInfoLogIdx, "glGetProgramInfoLog\0"),
-
-    (GenVertexArraysIdx, "glGenVertexArrays\0"),
-    (BindVertexArrayIdx, "glBindVertexArray\0"),
-
-    (GenBuffersIdx, "glGenBuffers\0"),
-    (BindBufferIdx, "glBindBuffer\0"),
-    (BufferDataIdx, "glBufferData\0"),
-    (EnableVertexAttribArrayIdx, "glEnableVertexAttribArray\0"),
-    (VertexAttribPointerIdx, "glVertexAttribPointer\0"),
 
     (GetUniformLocationIdx, "glGetUniformLocation\0"),
     (Uniform1fIdx, "glUniform1f\0"),
@@ -219,6 +212,10 @@ pub unsafe fn VertexAttribPointer(index: GLuint, size: GLint, type_: GLenum, nor
 
 pub unsafe fn DrawArrays(mode: GLenum, first: GLint, count: GLsizei) -> () {
     mem::transmute::<_, extern "system" fn(GLenum, GLint, GLsizei) -> ()>(*GL_API.get_unchecked(DrawArraysIdx as usize))(mode, first, count)
+}
+
+pub unsafe fn Recti(x1: GLint, y1: GLint, x2: GLint, y2: GLint ) -> () {
+    mem::transmute::<_, extern "system" fn(GLint, GLint, GLint, GLint) -> ()>(*GL_API.get_unchecked(RectiIdx as usize))(x1,y1,x2,y2)
 }
 
 pub unsafe fn GetUniformLocation(program: GLuint, name: *const GLchar) -> GLint {
