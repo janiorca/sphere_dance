@@ -12,6 +12,7 @@ mod gl;
 pub mod gl_util;
 pub mod util;
 mod intro;
+mod music;
 mod random;
 
 use core::mem::MaybeUninit;
@@ -134,8 +135,6 @@ fn show_error( message : *const i8 ) {
     }
 }
 
-// Create window function 
-// https://mariuszbartosik.com/opengl-4-x-initialization-in-windows-without-a-framework/
 fn create_window( ) -> ( HWND, HDC ) {
     unsafe {
         let h_wnd : HWND;
@@ -280,25 +279,47 @@ pub unsafe extern fn memcpy(dest: *mut u8, src: *const u8, n: usize) -> *mut u8 
     dest
 }
 
+static waveFormat : winapi::shared::mmreg::WAVEFORMATEX = winapi::shared::mmreg::WAVEFORMATEX{ 
+    wFormatTag : winapi::shared::mmreg::WAVE_FORMAT_IEEE_FLOAT, 
+    nChannels : 1,
+    nSamplesPerSec : 44100,
+    nAvgBytesPerSec : 44100*4,
+    nBlockAlign : 4,
+    wBitsPerSample: 32,
+    cbSize:0
+ };
 
+ static mut waveHeader : winapi::um::mmsystem::WAVEHDR = winapi::um::mmsystem::WAVEHDR{
+    lpData: 0 as *mut i8,
+    dwBufferLength: 44100*4*60,
+    dwBytesRecorded: 0,
+    dwUser: 0,
+    dwFlags: 0,
+    dwLoops: 0,
+    lpNext: 0 as *mut winapi::um::mmsystem::WAVEHDR,
+    reserved: 0,
+};
 
+static mut music_data : [f32;44100*60] = [ 0.0;44100*60];
 #[no_mangle]
 pub extern "system" fn mainCRTStartup() {
     let ( window, hdc ) = create_window(  );
 
     unsafe{ log!("Prepare\n"); };
     intro::prepare();
+
     let mut time : f32 = 0.0;
 
+    unsafe{
+        music::make_music( &mut music_data );
+        waveHeader.lpData = music_data.as_mut_ptr() as *mut i8;
+        let mut hWaveOut : winapi::um::mmsystem::HWAVEOUT = 0 as winapi::um::mmsystem::HWAVEOUT;
+        winapi::um::mmeapi::waveOutOpen( &mut hWaveOut, winapi::um::mmsystem::WAVE_MAPPER, &waveFormat, 0, 0, winapi::um::mmsystem::CALLBACK_NULL);
+        winapi::um::mmeapi::waveOutPrepareHeader(hWaveOut, &mut waveHeader, core::mem::size_of::<winapi::um::mmsystem::WAVEHDR>() as u32 );
+        winapi::um::mmeapi::waveOutWrite(hWaveOut, &mut waveHeader, core::mem::size_of::<winapi::um::mmsystem::WAVEHDR>() as u32 );
+    }
+
     unsafe{ log!("Entering loop\n"); };
-    unsafe{ log!("Number 1\n", 12.022f32); };
-    unsafe{ log!("Number 2\n", 1212.912f32); };
-    unsafe{ log!("Number 3\n", 12001.024f32); };
-    unsafe{ log!("Number 3\n", 12.3, 54.0); };
-
-
-    unsafe{ log!("Number 3\n", 12.3, 54.0, 12.09); };
-
     loop {
         #[cfg(feature = "logger")]
         {

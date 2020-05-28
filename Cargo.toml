@@ -22,6 +22,6 @@ opt-level = 0
 panic = "abort"
 
 [dependencies]
-winapi = { version = "0.3.8", features = ["winuser", "libloaderapi", "processthreadsapi", "fileapi", "handleapi" ] }
+winapi = { version = "0.3.8", features = ["winuser", "libloaderapi", "processthreadsapi", "fileapi", "handleapi", "mmreg", "mmsystem", "mmeapi" ] }
 #winapi = { version = "0.3.8", features = ["winuser", "libloaderapi", "processthreadsapi" ] }
 

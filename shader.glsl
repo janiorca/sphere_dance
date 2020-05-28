@@ -9,7 +9,6 @@ in vec4 gl_FragCoord;
 out vec4 fragColor;
 
 
-const vec3 sun_dir = normalize( vec3( 1.0, 1.10, 1.0 ));
 // prenormalized to avoid having it in the script -> made it worse?!
 // const vec3 sun_dir = vec3( 0.55, 0.61, 0.56 );
 const float maximum_dist = 99999.0;
@@ -18,6 +17,10 @@ vec2 water[4] = vec2[4]( normalize(vec2( 0.23, 0.65  )),
                         normalize(vec2( 0.83, -0.26  )),
                         normalize(vec2( 0.13, -0.83  )),
                         normalize(vec2( -0.2, 0.55  )));
+
+                        // normalize(vec2( -0.42, 0.15  )),
+                        // normalize(vec2( -0.2, -0.155  )));
+
 // prenormalized to avoid having it in the script
 // vec2 water[4] = vec2[4]( vec2( 0.33, 0.94  ), 
 //                         vec2( 0.95, -0.3  ),
@@ -111,7 +114,7 @@ bool cast_ray( vec3 origin, vec3 delta, out float t, out vec3 col, out vec3 norm
 
         // check exit height
         if( old_height > y ) {
-            col = vec3( 0.2, 0.071, .01 ) + step( 27, old_height ) * vec3( 0.6, -0.06, 0 );
+            col = vec3( 0.2, 0.071, .01 ) + step( 27, old_height ) * vec3( 0.1, -0.06, 0 );
             refrac = 1.2;
             normal = vec3( 0, 1.0, 0 );
 
@@ -174,8 +177,12 @@ vec3 in_scatter( float dist, float cos_angle ) {
 
 void main()
 {
+    vec3 sun_dir = normalize( vec3( 1.0, 1.10, 1.0 ));
+//    vec3 sun_dir = normalize( vec3( 1.0, sin( iTime )+1.02, 1.0 ));
+
     // calculate normalized screen pos with center at 0,0 extending width/height,1 
     vec2 screen_pos_2d = 2.0*(gl_FragCoord.xy/height) - vec2( width/height, 1.0 );
+
     // establish the 3d normalized 3d position, camera is at 0,0,0,   ray is towards screen_pos, depth
 //    vec3 camera_tgt_3d = vec3( screen_pos_2d, -2.0 );
     //vec3 camera_pos_3d = vec3( 0., 0., 0.);       // no need to track as it is at 0,0,0
@@ -317,5 +324,20 @@ void main()
         origin = pos;
 
     }
+
+    // vignetting
+    float cut_fraction = min( sp[162].x, sp[162].y );
+    if( cut_fraction <= 18 ) {
+        cut_fraction = 1.-cut_fraction/8.;
+    } else {
+        cut_fraction = 0.0;
+    }
+    cut_fraction = 0.0;
+    float dist = length( vec2( screen_pos_2d.x*(height/width), screen_pos_2d.y) );
+    float vignetting_level = min( 1.0, smoothstep( 0.95*(1.-cut_fraction/26.0), 1.31, dist )*0.6 + cut_fraction );
+
+    vec3 vfcolor = mix( final_color, vec3(0), vignetting_level );
+
+    //fragColor = vec4( pow( vfcolor, vec3(1.0 / 2.2) ), 1. );
     fragColor = vec4( pow( final_color, vec3(1.0 / 2.2) ), 1. );
 }

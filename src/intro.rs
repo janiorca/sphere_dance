@@ -2,6 +2,7 @@ use super::math_util;
 use super::gl;
 use super::gl_util;
 use super::random;
+use core::arch::x86;
 
 use gl::CVoid;
 use core::mem::{size_of,transmute};
@@ -17,6 +18,7 @@ pub const FP_1_54 : f32 = 1.5390625000f32;
 
 pub const CAMERA_POS_IDX : usize = 80*2;
 pub const CAMERA_ROT_IDX : usize = 80*2+1;
+pub const CAMERA_CUT_INFO : usize = 80*2+2;
 
 pub const num_spheres : usize = 80;
 pub const sphere_extras : usize = 2;
@@ -29,13 +31,18 @@ static mut rng : random::Rng = random::Rng{seed: core::num::Wrapping(21431249)};
 static mut global_spheres: [ [ f32; 4]; (num_spheres+sphere_extras)*2] = [ [ 0f32; 4]; (num_spheres+sphere_extras)*2 ];  
 
 fn smooth( pixels: &mut [ f32; 512*512*4 ]) {
-    for xy in 0..511*511{
-        let offset = xy*4;
-        let mut val  = pixels[ offset ];
-        val += pixels[ offset+4 ];
-        val += pixels[ offset+2048 ];
-        val += pixels[ offset+2052 ];
-        pixels[ offset ] = val / 4.0;
+    unsafe{
+        let mut xy = 0;
+        loop{
+            let offset = xy*4;
+            let mut val  = *pixels.get_unchecked( offset );
+            val += pixels.get_unchecked( offset+4 );
+            val += pixels.get_unchecked( offset+2048 );
+            val += pixels.get_unchecked( offset+2052 );
+            *pixels.get_unchecked_mut( offset ) = val / 4.0;
+            xy += 1;
+            if xy == 511*511 { break; }
+        }
     }
 }
 
@@ -121,6 +128,7 @@ pub fn lbutton_up( ) {
 }
 
 fn set_r3( dest : &mut[ f32 ; 4 ], crng : &mut random::Rng, a: f32, b: f32, c: f32 ) {
+    // tried turning into a loop -> crinkled version grew 60bytes!
     dest[ 0 ] = (crng.next_f32()-0.5)*a;
     dest[ 1 ] = (crng.next_f32()-0.5)*b;
     dest[ 2 ] = (crng.next_f32()-0.5)*c;
@@ -190,25 +198,38 @@ pub fn prepare() -> () {
         let mut lumps : [(f32,f32,f32);50] = [(0.0,0.0,0.0);50];
         let num_lumps = 50;
 
-        for nl in 0..num_lumps {
+//        for nl in 0..num_lumps {
+        let mut nl = 0;
+        loop{
             let x = rng_terrain.next_f32();
             let y = rng_terrain.next_f32();
             let f = rng_terrain.next_f32();
             lumps[ nl ] = (x,y,f);
+            nl += 1;
+            if nl == num_lumps {break}
         }
 
-        for i in 0..1_000_000 {
+
+//        for i in 0..1_000_000 {
+        let  mut i = 0;
+        loop{
             let (x,y,pos) = random_pos( &mut rng_terrain );
             let mut charge = 0.0;
-            for nl in 0..num_lumps {
+//            for nl in 0..num_lumps {
+            nl = 0;
+            loop{
                 let lmp = lumps.get(nl).unwrap();
                 let dist = (x-lmp.0)*(x-lmp.0) + (y-lmp.1)*(y-lmp.1);
                 charge += lmp.2*0.0001/dist;
+                nl += 1;
+                if nl == num_lumps { break;}
             }
-            src_terrain[ pos ] += charge;
-            if src_terrain[ pos ] > 1.0  {
-                src_terrain[ pos ] = 1.0
+            *src_terrain.get_unchecked_mut( pos ) += charge;
+            if *src_terrain.get_unchecked( pos ) > 1.0  {
+                *src_terrain.get_unchecked_mut( pos ) = 1.0
             }
+            i += 1;
+            if i== 1_000_000 { break}
         }
 
         smooth( &mut src_terrain); 
@@ -218,23 +239,27 @@ pub fn prepare() -> () {
         super::log!( "!!!!");
         super::log!( "", src_terrain[ (pos-1) as usize] );
         super::log!( "!!!!");
-        src_terrain[ pos as usize] = 1.0f32;
+        *src_terrain.get_unchecked_mut( pos as usize ) = 1.0f32;
 
-        for idx in 0..num_spheres {
+//        for idx in 0..num_spheres {
+        let mut idx = 0;
+        loop {
             loop{
                 let (x,y,pos) = random_pos( &mut rng_terrain );
-                if src_terrain[ pos ] > 0.3f32 {
-                    spheres[ idx*2 ][ 0 ] = x*512f32;
-                    spheres[ idx*2 ][ 1 ] = src_terrain[ pos ]*60.0-12.1;
-                    spheres[ idx*2 ][ 2 ] = y*512f32;
-                    spheres[ idx*2 ][ 3 ] = 18.0f32;
-                    spheres[ idx*2+1 ][ 0 ] = FP_0_02;
-                    spheres[ idx*2+1 ][ 1 ] = FP_0_02;
-                    spheres[ idx*2+1 ][ 2 ] = FP_0_02;
-                    spheres[ idx*2+1 ][ 3 ] = FP_1_32;
+                if *src_terrain.get_unchecked( pos ) > 0.3f32 {
+                    spheres.get_unchecked_mut(idx*2)[ 0 ] = x*512f32;
+                    spheres.get_unchecked_mut(idx*2)[ 1 ] = *src_terrain.get_unchecked( pos )*60.0-12.1;
+                    spheres.get_unchecked_mut(idx*2)[ 2 ] = y*512f32;
+                    spheres.get_unchecked_mut(idx*2)[ 3 ] = 18.0f32;
+                    spheres.get_unchecked_mut(idx*2+1)[ 0 ] = FP_0_02;
+                    spheres.get_unchecked_mut(idx*2+1)[ 1 ] = FP_0_02;
+                    spheres.get_unchecked_mut(idx*2+1)[ 2 ] = FP_0_02;
+                    spheres.get_unchecked_mut(idx*2+1)[ 3 ] = FP_1_32;
                     break;
                 }
             }
+            idx += 1;
+            if idx == num_spheres { break;}
         }
     }
 
@@ -267,8 +292,8 @@ fn update_world() {
         } else {
             camera_mode = 0;
         }
-        delay_counter = sequence[ play_pos] as u32*60;
-        let seed : u32 = sequence[ play_pos+38].into() ;
+        delay_counter = *sequence.get_unchecked( play_pos ) as u32*60;
+        let seed : u32 = (*sequence.get_unchecked( play_pos+38 )).into();
         super::log!( "Camera", seed as f32, camera_mode as f32);
         setup_camera( seed, camera_mode as u8 );
         play_pos += 1;
@@ -295,10 +320,11 @@ fn setup_camera( seed : u32, mode : u8) {
 
     let (x,y,pos) = random_pos( &mut crng );
 
+    unsafe{ super::log!( "Setup Camera: ", 2.0 ); }
     unsafe{
         //if mode == 0 {
             global_spheres[ CAMERA_POS_IDX ][ 0 ] = x*512f32;
-            global_spheres[ CAMERA_POS_IDX ][ 1 ] = src_terrain[ pos ]*60.0-2.1+crng.next_f32()*5.0;
+            global_spheres[ CAMERA_POS_IDX ][ 1 ] = *src_terrain.get_unchecked( pos )*60.0-2.1+crng.next_f32()*5.0;
             global_spheres[ CAMERA_POS_IDX ][ 2 ] = y*512f32;
             set_r3( &mut global_spheres[ CAMERA_ROT_IDX ], &mut crng, FP_1_54, 3.15, FP_0_05 );
             set_r3( &mut camera_velocity, &mut crng, FP_0_20, FP_0_05, FP_0_20);
@@ -313,11 +339,10 @@ fn setup_camera( seed : u32, mode : u8) {
 
             pivot_cam_dist[ 0 ] = (1.1f32-crng.next_f32())*scale;
             pivot_cam_angle[1] = global_spheres[ CAMERA_ROT_IDX ][ 1 ];
-//            pivot_cam_centre[ 0 ] = 130.5 + 256.0; 
             pivot_cam_centre[ 1 ] = 25.8 + crng.next_f32()*0.4f32*scale;
-//            pivot_cam_centre[ 2 ] = 191.5 + 256.0;
         }
     }
+    unsafe{ super::log!( "Setup Camera: ", 3.0 ); }
     
 }
 
@@ -448,16 +473,27 @@ static sequence : &[u16] = &[
 pub fn frame( now : f32 ) -> () {
     unsafe {
         if delay_counter == 0 {
-            update_world( )
+            update_world( );
+            global_spheres[ CAMERA_CUT_INFO ][ 1 ] = 0f32;
+
         }
         delay_counter -= 1;
+        global_spheres[ CAMERA_CUT_INFO ][ 1 ] += 1f32;
     }
 
     unsafe{
+        // let mut dst:x86::__m128 = core::arch::x86::_mm_load_ps(global_spheres[ CAMERA_ROT_IDX ].as_mut_ptr());
+        // let mut src:x86::__m128 = core::arch::x86::_mm_load_ps(camera_rot_speed.as_mut_ptr());
+        // dst = core::arch::x86::_mm_add_ps( dst, src);
+        // core::arch::x86::_mm_store_ss( (&mut global_spheres[ CAMERA_ROT_IDX ]).as_mut_ptr(), dst );
         global_spheres[ CAMERA_ROT_IDX ][ 0 ] += camera_rot_speed[ 0 ];
         global_spheres[ CAMERA_ROT_IDX ][ 1 ] += camera_rot_speed[ 1 ];
         global_spheres[ CAMERA_ROT_IDX ][ 2 ] += camera_rot_speed[ 2 ];
         if camera_mode == 0 {
+            // dst = core::arch::x86::_mm_load_ps(global_spheres[ CAMERA_POS_IDX ].as_mut_ptr());
+            // src = core::arch::x86::_mm_load_ps(camera_velocity.as_mut_ptr());
+            // dst = core::arch::x86::_mm_add_ps( dst, src);
+            // core::arch::x86::_mm_store_ss( (&mut global_spheres[ CAMERA_POS_IDX ]).as_mut_ptr(), dst );
             global_spheres[ CAMERA_POS_IDX ][ 0 ] += camera_velocity[ 0 ];
             global_spheres[ CAMERA_POS_IDX ][ 1 ] += camera_velocity[ 1 ];
             global_spheres[ CAMERA_POS_IDX ][ 2 ] += camera_velocity[ 2 ];
@@ -470,7 +506,9 @@ pub fn frame( now : f32 ) -> () {
             global_spheres[ CAMERA_POS_IDX ][ 2 ] = 191.5 + 256.0 - math_util::sin(angle)*pivot_cam_dist[ 0 ]*pivot_cam_dist[ 0 ];
             pivot_cam_dist[ 0 ] += camera_velocity[ 0 ]*1.0f32;
         }
+        global_spheres[ CAMERA_CUT_INFO ][ 0 ] = delay_counter as f32;
     }
+
 
     unsafe{
         gl::UseProgram(shader_prog);

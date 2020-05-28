@@ -77,6 +77,8 @@ const VertexAttribPointerIdx: u16 = 682;
 
 const wglSwapIntervalIdx: u16 = 695;
 
+static mut GL_API: [usize; 696] = [0; 696];
+
 static LOAD_DESC: &'static [(u16, &'static str)] = &[
 
     ( wglSwapIntervalIdx, "wglSwapIntervalEXT\0" ),
@@ -119,7 +121,6 @@ static LOAD_DESC: &'static [(u16, &'static str)] = &[
 ];
 
 
-static mut GL_API: [usize; 696] = [0; 696];
 
 pub unsafe fn wglSwapIntervalEXT(interval: GLint ) -> GLuint {
     mem::transmute::<_, extern "system" fn(GLint) -> GLuint>(*GL_API.get_unchecked(wglSwapIntervalIdx as usize))(interval)
@@ -259,7 +260,7 @@ pub fn init() {
             if prc == 0 {
                 prc = GetProcAddress( handle, name.as_ptr() as *const i8 ) as usize;
             }
-            GL_API[ index as usize] =  prc;
+            *GL_API.get_unchecked_mut( index as usize ) =  prc;
         }
     }
 }
