@@ -109,7 +109,6 @@ static LOAD_DESC: &'static [(u16, &'static str)] = &[
     (GetProgramInfoLogIdx, "glGetProgramInfoLog\0"),
 
     (GetUniformLocationIdx, "glGetUniformLocation\0"),
-    (Uniform1fIdx, "glUniform1f\0"),
     (Uniform4fvIdx, "glUniform4fv\0"),
   
     // Texture

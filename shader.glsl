@@ -2,7 +2,7 @@
 const int num_spheres = 80;
 const float width = 1280;
 const float height = 720;
-uniform float iTime;
+//uniform float iTime;
 uniform vec4 sp[(num_spheres+2)*2];
 uniform sampler2D terrain;
 in vec4 gl_FragCoord;
@@ -34,7 +34,7 @@ vec3 water_ripple( vec3 pos ) {
     float intensity2 = 0.0;
     for( int k=0; k< 4; k++ ) {
         float t = pos.x*water[k].x + pos.z*water[k].y;
-        t = t*(4.0-(float(k)*0.51013))+iTime;
+        t = t*(4.0-(float(k)*0.51013))+sp[162].z;
 
         float mt = 1.0/(float(k)+1.0);
         intensity += mt*sin(t-0.3*cos(t));
@@ -326,18 +326,18 @@ void main()
     }
 
     // vignetting
-    float cut_fraction = min( sp[162].x, sp[162].y );
-    if( cut_fraction <= 18 ) {
-        cut_fraction = 1.-cut_fraction/8.;
-    } else {
-        cut_fraction = 0.0;
-    }
-    cut_fraction = 0.0;
-    float dist = length( vec2( screen_pos_2d.x*(height/width), screen_pos_2d.y) );
-    float vignetting_level = min( 1.0, smoothstep( 0.95*(1.-cut_fraction/26.0), 1.31, dist )*0.6 + cut_fraction );
+    // float cut_fraction = min( sp[162].x, sp[162].y );
+    // if( cut_fraction <= 18 ) {
+    //     cut_fraction = 1.-cut_fraction/8.;
+    // } else {
+    //     cut_fraction = 0.0;
+    // }
+    // cut_fraction = 0.0;
+    // float dist = length( vec2( screen_pos_2d.x*(height/width), screen_pos_2d.y) );
+    // float vignetting_level = min( 1.0, smoothstep( 0.95*(1.-cut_fraction/26.0), 1.31, dist )*0.6 + cut_fraction );
 
-    vec3 vfcolor = mix( final_color, vec3(0), vignetting_level );
+    // vec3 vfcolor = mix( final_color, vec3(0), vignetting_level );
 
-    //fragColor = vec4( pow( vfcolor, vec3(1.0 / 2.2) ), 1. );
+    // //fragColor = vec4( pow( vfcolor, vec3(1.0 / 2.2) ), 1. );
     fragColor = vec4( pow( final_color, vec3(1.0 / 2.2) ), 1. );
 }

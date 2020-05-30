@@ -6,7 +6,6 @@ pub struct Rng {
 }
 
 impl Rng {
-    #[inline]
     pub fn new_unseeded() -> Rng {
         Rng {
             seed: Wrapping(0x66126c8d),
