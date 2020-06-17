@@ -66,6 +66,7 @@ static mut pivot_cam_dist : [ f32; 3] = [ 0.0; 3];
 static mut pivot_cam_angle : [ f32; 3] = [ 0.0; 3];
 
 static mut camera_mode : u32 = 0;
+static mut sphere_scale : f32 = 0.0;
 
 #[cfg(feature = "logger")]
 pub fn set_pos( x: i32, y: i32, ctrl : bool ) {
@@ -139,6 +140,37 @@ fn set_r3( dest : &mut[ f32 ; 4 ], crng : &mut random::Rng, a: f32, b: f32, c: f
     }
 }
 
+static mut sphere_delta : f32  = 0.0;
+fn set_sphere_positions(now: f32) -> ( ) {
+    let mut rng_terrain : random::Rng = random::Rng{seed: core::num::Wrapping(7923129)};
+
+    let mut idx = 0;
+    unsafe{
+        let mut offset = math_util::sin( (now-sphere_delta)*0.02 )*sphere_scale;
+        if offset < 0.0 {
+            offset = -offset;
+        }
+        loop {
+            loop{
+                let y_offset = offset;
+                set_r3( global_spheres.get_unchecked_mut(idx*2), &mut rng_terrain,512f32,512f32,512f32, 0.0 );
+                if *src_terrain.get_unchecked( r3_pos ) > 0.3f32 {
+                    global_spheres.get_unchecked_mut(idx*2)[ 1 ] = *src_terrain.get_unchecked( r3_pos )*60.0-12.1 + y_offset;
+                    global_spheres.get_unchecked_mut(idx*2)[ 3 ] = 18.0f32;
+                    global_spheres.get_unchecked_mut(idx*2+1)[ 0 ] = FP_0_02;
+                    global_spheres.get_unchecked_mut(idx*2+1)[ 1 ] = FP_0_02;
+                    global_spheres.get_unchecked_mut(idx*2+1)[ 2 ] = FP_0_02;
+                    global_spheres.get_unchecked_mut(idx*2+1)[ 3 ] = FP_1_32;
+                    break;
+                }
+                offset *= 1.003;
+            }
+            idx += 1;
+            if idx == num_spheres { break;}
+        }
+    }
+}
+
 pub fn prepare() -> () {
     let mut error_message : [i8;100] = [ 0; 100];
      let vtx_shader_src : &'static str = "#version 330 core
@@ -189,14 +221,15 @@ pub fn prepare() -> () {
 
     unsafe{
         super::log!( "Build terrain!");
-        // COULD restructure this to create the points for each iteration instead of storing into array. Very slow but could save some bytes 
-        let mut rng_terrain : random::Rng = random::Rng{seed: core::num::Wrapping(9231249)};
+        // Create the terrains by dropping some lumps and randomly aggregating points around them
+        let mut rng_terrain : random::Rng = random::Rng{seed: core::num::Wrapping(7923129)};
         let mut lumps : [[f32;4];50] = [[0f32;4];50];
         let num_lumps = 50;
 
         let mut nl = 0;
         loop{
-            set_r3( lumps.get_unchecked_mut(nl), &mut rng_terrain,1f32,1f32,1f32, 0.0 );
+            // do not put the lumps too close to the edges to avoid ugly discontinuities
+            set_r3( lumps.get_unchecked_mut(nl), &mut rng_terrain,0.8f32,0.8f32,0.8f32, -0.1 );
             nl += 1;
             if nl == num_lumps {break}
         }
@@ -221,38 +254,12 @@ pub fn prepare() -> () {
                 *src_terrain.get_unchecked_mut( r3_pos ) = 1.0
             }
             i += 1;
-            if i== 1_000_000 { break}
+            if i== 700_000 { break}
         }
 
+        // Smooth the terrain once to make it less 'craggy'
         smooth( &mut src_terrain); 
-        let x : u32 = 256 + 130;
-        let y : u32 = 256 + 191;
-        let pos = ((y*512)+(x))*4+1;
-        super::log!( "!!!!");
-        super::log!( "", src_terrain[ (pos-1) as usize] );
-        super::log!( "!!!!");
-        *src_terrain.get_unchecked_mut( pos as usize ) = 1.0f32;
-
-        let mut idx = 0;
-        loop {
-            loop{
-                set_r3( spheres.get_unchecked_mut(idx*2), &mut rng_terrain,512f32,512f32,512f32, 0.0 );
-                if *src_terrain.get_unchecked( r3_pos ) > 0.3f32 {
-                    spheres.get_unchecked_mut(idx*2)[ 1 ] = *src_terrain.get_unchecked( r3_pos )*60.0-12.1;
-                    spheres.get_unchecked_mut(idx*2)[ 3 ] = 18.0f32;
-                    spheres.get_unchecked_mut(idx*2+1)[ 0 ] = FP_0_02;
-                    spheres.get_unchecked_mut(idx*2+1)[ 1 ] = FP_0_02;
-                    spheres.get_unchecked_mut(idx*2+1)[ 2 ] = FP_0_02;
-                    spheres.get_unchecked_mut(idx*2+1)[ 3 ] = FP_1_32;
-                    break;
-                }
-            }
-            idx += 1;
-            if idx == num_spheres { break;}
-        }
     }
-
-
 
     let mut vertex_buffer_id : gl::GLuint = 0;
     unsafe{
@@ -270,33 +277,38 @@ pub fn prepare() -> () {
 }
 
 
-static mut delay_counter : u32 = 0;
+static mut delay_counter : i32 = 0;
 static mut play_pos : usize = 0;
+static mut camera_speed : f32 = 1.0;
 
-fn update_world() {
+fn update_world( now: f32 ) {
     
     unsafe{
-        if play_pos >= 21 && play_pos <= 33 {
-            camera_mode = 1;
+        delay_counter = *sequence.get_unchecked( play_pos*2+0 ) as i32*60;
+        let arg : u32 = ((*sequence.get_unchecked( play_pos*2+1 )) & 0x0fff ) as u32;
+        let mode : u16 = (*sequence.get_unchecked( play_pos*2+1 )) & 0xf000;
+
+        super::log!( "Camera", arg as f32, camera_mode as f32);
+        if mode == MODE_CAM_PAN {
+            setup_camera( arg, camera_mode as u8 );
+        } else if mode == MODE_CAM_SPEED {
+            camera_speed = arg as f32;
         } else {
-            camera_mode = 0;
+            sphere_delta = now;
+            sphere_scale = arg as f32;
         }
-        delay_counter = *sequence.get_unchecked( play_pos ) as u32*60;
-        let seed : u32 = (*sequence.get_unchecked( play_pos+38 )).into();
-        super::log!( "Camera", seed as f32, camera_mode as f32);
-        setup_camera( seed, camera_mode as u8 );
         play_pos += 1;
     }
 }
 
-static mut cam_count : u32 = 1100;          // (1753 0 )
+static mut cam_count : u32 = 1918;          // (1753 0 )
 
 fn setup_random_camera( ) {
     let seed : u32;
     unsafe{ 
         cam_count += 1;
-        setup_camera( cam_count, 1);
-        camera_mode = 1;
+        setup_camera( cam_count, 0);
+        camera_mode = 0;
 
     }   
 }
@@ -315,151 +327,57 @@ fn setup_camera( seed : u32, mode : u8) {
         set_r3( &mut global_spheres[ CAMERA_ROT_IDX ], &mut crng, FP_1_54, 3.15, FP_0_05, 0.5 );
         set_r3( &mut camera_velocity, &mut crng, FP_0_20, FP_0_05, FP_0_20, 0.5);
         set_r3( &mut camera_rot_speed, &mut crng, 0.002, 0.001, 0.001, 0.5 );
-
-        if mode == 1 {
-            let scale = crng.next_f32()*10f32;
-            global_spheres[ CAMERA_ROT_IDX ][ 0 ]  =  (crng.next_f32()-0.5)*FP_1_54;
-    
-            camera_velocity[ 0 ] *= FP_0_01;
-            camera_rot_speed[ 1 ] *= 5.0f32;
-
-            pivot_cam_dist[ 0 ] = (1.1f32-crng.next_f32())*scale;
-            pivot_cam_angle[1] = global_spheres[ CAMERA_ROT_IDX ][ 1 ];
-            pivot_cam_centre[ 1 ] = 25.8 + crng.next_f32()*0.4f32*scale;
-        }
     }
     unsafe{ super::log!( "Setup Camera: ", 3.0 ); }
     
 }
 
-//random camera centre 130.5525, 27.7635, 191.6042
+const MODE_CAM_PAN   : u16 = 0x1000; 
+const MODE_CAM_PIVOT : u16 = 0x3000; 
+const MODE_CAM_SPEED : u16 = 0x4000; 
+const MODE_SPHERE_SCALE : u16 = 0x5000; 
 
 // 38*2  ( save 5 bytes in compressed space by grouping by type to get more compressability)
 static sequence : &[u16] = &[
-// CONFIRMED SEQUENCE
-// close shots of water - glimpses of land
-2,       //water wobbles
-2,        //water wobbles
-4,       //water wobbles
-2,        //water wobbles
-2,        //water wobbles
-6,         //need better pan up from water shot   18
-
-// forward shots
-3,            //idx 6
-3,       
-5,         // low forward beach shot
-4,       
-14,          // long turning shot
-3,         // forward tuning shot nice
-3,         // nice color foward pan
-6,       
-6,       // 33
-
-// left
-4,         // idx 15
-8,       // animate sphere at this point. Could be longer
-
-// up to pan around
-3,       // pan color angle forward     // idx 17
-8,       // rising upo high from water, nice long shadow
-6,       // nice high shot looking down
-6,       // nice high look downn into holo map
-
-// far   
-4,    // SPIN CAM_START   // idx 21
-4, 
-3, 
-
-//    nearer
-3, 
-
-// very close
-3, 
-5, 
-3, 
-3, 
-3, 
-3, 
-10,
-
-// Leave holo
-2, // SPIN CAM_LAST   // idx 32
-
-// Final pull back
-4,  // nice pull back
-4,  // pan back over sphere
-2,  // very nice backward pass 
-2,  // pan back water  
-20,  // big wide back pan color
+//     1200,   MODE_CAM_PAN | 1612,
+// Slow pan in
+28,   MODE_CAM_PAN | 786 ,
+// Quick camera flashes
+2,    MODE_CAM_PAN | 1223 ,
+2,    MODE_CAM_PAN | 1239 ,
+2,   MODE_CAM_PAN | 2157,  // join slow upshot 
+// Hold on up side wall
+4,    MODE_CAM_PAN | 945 ,
 
 
-// CONFIRMED SEQUENCE
-// close shots of water - glimpses of land
-64,         //water wobbles
-434,         //water wobbles
-65,         //water wobbles
-798,         //water wobbles
-436,         //water wobbles
-1187,         //need better pan up from water shot   18
+// Pan forward    /// find better
+4,   MODE_CAM_PAN | 2290, // forward wtith accel
+1,    MODE_CAM_SPEED | 12 ,
+7,    MODE_CAM_SPEED | 1 ,
 
-// forward shots
-317,           //idx 6
-298, 
-1649,       // low forward beach shot
-909, 
- 724,         // long turning shot
-1453,       // forward tuning shot nice
-1007,       // nice color foward pan
-723, 
-1046,     // 33
+// up again and release the spheres
+1,   MODE_CAM_PAN | 1849,
+23,   MODE_SPHERE_SCALE | 48,
 
-// left
-123,           // idx 15
-1299,        // animate sphere at this point. Could be longer
+// lock down the spheres again
+0,   MODE_SPHERE_SCALE | 1,
+3,   MODE_CAM_PAN | 2102,  // spin down
+1,  MODE_CAM_SPEED | 12 ,
+4,  MODE_CAM_SPEED | 1 ,
 
-// up to pan around
-1120,       // pan color angle forward     // idx 17
-636,        // rising upo high from water, nice long shadow
-613,        // nice high shot looking down
-1006,       // nice high look downn into holo map
-
-// far   
-449,          // SPIN CAM_START   // idx 21
-729,
-398,
-
-//    nearer
-353,
-
-// very close
-942,
-666,
-345,
-420,
-495,
-983,
-741,
-
-// Leave holo
-1490,     // SPIN CAM_LAST   // idx 32
-
-// Final pull back
-166,        // nice pull back
-151,        // pan back over sphere
-691,        // very nice backward pass 
-1112,       // pan back water  
- 1261,       // big wide back pan color
-
-
-
+4,   MODE_CAM_PAN | 2156,  // dunk down
+0,   MODE_SPHERE_SCALE | 48,
+22,   MODE_CAM_PAN | 2118,  //**
+16,   MODE_CAM_PAN | 1011,
 
 ];
 
 pub fn frame( now : f32 ) -> () {
+    set_sphere_positions(now);
+
     unsafe {
-        if delay_counter == 0 {
-            update_world( );
+        if delay_counter <= 0 {
+            update_world( now );
             global_spheres[ CAMERA_CUT_INFO ][ 1 ] = 0f32;
 
         }
@@ -472,25 +390,17 @@ pub fn frame( now : f32 ) -> () {
         // let mut src:x86::__m128 = core::arch::x86::_mm_load_ps(camera_rot_speed.as_mut_ptr());
         // dst = core::arch::x86::_mm_add_ps( dst, src);
         // core::arch::x86::_mm_store_ss( (&mut global_spheres[ CAMERA_ROT_IDX ]).as_mut_ptr(), dst );
-        global_spheres[ CAMERA_ROT_IDX ][ 0 ] += camera_rot_speed[ 0 ];
-        global_spheres[ CAMERA_ROT_IDX ][ 1 ] += camera_rot_speed[ 1 ];
-        global_spheres[ CAMERA_ROT_IDX ][ 2 ] += camera_rot_speed[ 2 ];
-        if camera_mode == 0 {
+        global_spheres[ CAMERA_ROT_IDX ][ 0 ] += camera_rot_speed[ 0 ]*camera_speed;
+        global_spheres[ CAMERA_ROT_IDX ][ 1 ] += camera_rot_speed[ 1 ]*camera_speed;
+        global_spheres[ CAMERA_ROT_IDX ][ 2 ] += camera_rot_speed[ 2 ]*camera_speed;
             // dst = core::arch::x86::_mm_load_ps(global_spheres[ CAMERA_POS_IDX ].as_mut_ptr());
             // src = core::arch::x86::_mm_load_ps(camera_velocity.as_mut_ptr());
             // dst = core::arch::x86::_mm_add_ps( dst, src);
             // core::arch::x86::_mm_store_ss( (&mut global_spheres[ CAMERA_POS_IDX ]).as_mut_ptr(), dst );
-            global_spheres[ CAMERA_POS_IDX ][ 0 ] += camera_velocity[ 0 ];
-            global_spheres[ CAMERA_POS_IDX ][ 1 ] += camera_velocity[ 1 ];
-            global_spheres[ CAMERA_POS_IDX ][ 2 ] += camera_velocity[ 2 ];
+        global_spheres[ CAMERA_POS_IDX ][ 0 ] += camera_velocity[ 0 ]*camera_speed;
+        global_spheres[ CAMERA_POS_IDX ][ 1 ] += camera_velocity[ 1 ]*camera_speed;
+        global_spheres[ CAMERA_POS_IDX ][ 2 ] += camera_velocity[ 2 ]*camera_speed;
 
-        }  else if camera_mode == 1 {
-            let angle = global_spheres[ CAMERA_ROT_IDX ][ 1 ] - 3.14f32 / 2.0f32; //pivot_cam_angle[1];
-            global_spheres[ CAMERA_POS_IDX ][ 0 ] = 130.5 + 256.0 + math_util::cos(angle )*pivot_cam_dist[ 0 ]*pivot_cam_dist[ 0 ];
-            global_spheres[ CAMERA_POS_IDX ][ 1 ] = pivot_cam_centre[ 1 ];
-            global_spheres[ CAMERA_POS_IDX ][ 2 ] = 191.5 + 256.0 - math_util::sin(angle)*pivot_cam_dist[ 0 ]*pivot_cam_dist[ 0 ];
-            pivot_cam_dist[ 0 ] += camera_velocity[ 0 ]*1.0f32;
-        }
         global_spheres[ CAMERA_CUT_INFO ][ 0 ] = delay_counter as f32;
         global_spheres[ CAMERA_CUT_INFO ][ 2 ] = now;
     }

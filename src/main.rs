@@ -291,7 +291,7 @@ static waveFormat : winapi::shared::mmreg::WAVEFORMATEX = winapi::shared::mmreg:
 
  static mut waveHeader : winapi::um::mmsystem::WAVEHDR = winapi::um::mmsystem::WAVEHDR{
     lpData: 0 as *mut i8,
-    dwBufferLength: 44100*4*60,
+    dwBufferLength: 44100*4*120,
     dwBytesRecorded: 0,
     dwUser: 0,
     dwFlags: 0,
@@ -300,7 +300,7 @@ static waveFormat : winapi::shared::mmreg::WAVEFORMATEX = winapi::shared::mmreg:
     reserved: 0,
 };
 
-static mut music_data : [f32;44100*60] = [ 0.0;44100*60];
+static mut music_data : [f32;44100*120] = [ 0.0;44100*120];
 #[no_mangle]
 pub extern "system" fn mainCRTStartup() {
     let ( window, hdc ) = create_window(  );
@@ -336,7 +336,11 @@ pub extern "system" fn mainCRTStartup() {
 
         intro::frame( time );
         unsafe{ SwapBuffers(hdc); }
-        time += 1.0 / 60.0f32;            
+        time += 1.0 / 60.0f32;  
+        #[cfg(not(feature = "logger"))]
+        if time > 120.0 {
+            break;
+        }          
     }
 
     unsafe{

@@ -10,7 +10,7 @@ static frequencies : [ f32; 7] = [
     698.0,     //F5             1.22
     831.0];     //Ab5
 
-fn play( dst: &mut [f32;44100*60], dst_offset : usize, signal : &[f32;44100*9], sample_duration : f32 ) {
+fn play( dst: &mut [f32;44100*120], dst_offset : usize, signal : &[f32;44100*9], sample_duration : f32 ) {
     let mut dst_pos = 0;
     let mut position : f32 = 0.0;
     unsafe{
@@ -29,7 +29,7 @@ fn play( dst: &mut [f32;44100*60], dst_offset : usize, signal : &[f32;44100*9], 
     }
 }
 
-pub fn make_music( music: &mut [f32;44100*60]) {
+pub fn make_music( music: &mut [f32;44100*120]) {
     let mut vrng = random::Rng::new_unseeded();
 
     unsafe{ super::log!( "Make instruments!"); };
@@ -37,7 +37,7 @@ pub fn make_music( music: &mut [f32;44100*60]) {
     let mut i = 0;
     loop{
         let mut scale = 1.0;
-        let mut harmonic = 0;
+        // # Could combine into a single loop that doubles the scales when loop % 11 == 0. Possibly slightly shorter
         unsafe{
             loop{
                 let mut d = 0;
@@ -45,17 +45,14 @@ pub fn make_music( music: &mut [f32;44100*60]) {
                     let frequency : f32 = frequencies.get_unchecked(i)/scale+6.0*vrng.next_f32();
                     let mut position : f32 = 0.0;
                     let mut sample_no = 0;
-                    loop {   // remove  iter
+                    loop {
                         let sample_duration : f32 = frequency / 44100.0f32;
                         position = position + sample_duration;
                         if position > 0.5 {
                             position -= 1.0f32;
                         }
                         let val = core::intrinsics::fabsf32(position)*4f32-1.0f32;
-
-                        unsafe{
-                            *sounds.get_unchecked_mut(i).get_unchecked_mut(sample_no) += val/55.0f32;
-                        }
+                        *sounds.get_unchecked_mut(i).get_unchecked_mut(sample_no) += val/55.0f32;
                         sample_no += 1;
                         if sample_no == 44100*9 {
                             break;
@@ -84,13 +81,11 @@ pub fn make_music( music: &mut [f32;44100*60]) {
         let mut dst : usize = 0;
         let mut s = 0;
         loop {
-            super::log!( "#", s as f32);
             let mut i = 0;
             loop{
                 let nt = mrng.next_f32();
                 if nt > 0.9 {
                     play( music, dst, &sounds[i], 1.0 / 44100.0 );
-                    super::log!( "#", nt as f32);
                 }
                 i += 1;
                 if i == 7 { 
@@ -99,7 +94,7 @@ pub fn make_music( music: &mut [f32;44100*60]) {
             }
             dst += 44100;
             s += 1;
-            if s == 50 { 
+            if s == 110 { 
                 break; 
             }
         }

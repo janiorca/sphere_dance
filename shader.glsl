@@ -2,12 +2,10 @@
 const int num_spheres = 80;
 const float width = 1280;
 const float height = 720;
-//uniform float iTime;
 uniform vec4 sp[(num_spheres+2)*2];
 uniform sampler2D terrain;
 in vec4 gl_FragCoord;
 out vec4 fragColor;
-
 
 // prenormalized to avoid having it in the script -> made it worse?!
 // const vec3 sun_dir = vec3( 0.55, 0.61, 0.56 );
@@ -17,15 +15,6 @@ vec2 water[4] = vec2[4]( normalize(vec2( 0.23, 0.65  )),
                         normalize(vec2( 0.83, -0.26  )),
                         normalize(vec2( 0.13, -0.83  )),
                         normalize(vec2( -0.2, 0.55  )));
-
-                        // normalize(vec2( -0.42, 0.15  )),
-                        // normalize(vec2( -0.2, -0.155  )));
-
-// prenormalized to avoid having it in the script
-// vec2 water[4] = vec2[4]( vec2( 0.33, 0.94  ), 
-//                         vec2( 0.95, -0.3  ),
-//                         vec2( 0.15, -0.98 ),
-//                         vec2( -0.34, 0.94  ));
 
 
 
@@ -103,7 +92,7 @@ bool cast_ray( vec3 origin, vec3 delta, out float t, out vec3 col, out vec3 norm
     vec2 ip = floor( origin.xz );
     float next_y = origin.y;
     float old_height = get_height( ip, type );
-    refrac = 0.0;
+    refrac = 1.2;
     
     for( t=0.0;t<far_t-skip_t;) {
         vec2 or = vec2( float(tmax.x < tmax.y), float(tmax.x >= tmax.y));
@@ -115,12 +104,11 @@ bool cast_ray( vec3 origin, vec3 delta, out float t, out vec3 col, out vec3 norm
         // check exit height
         if( old_height > y ) {
             col = vec3( 0.2, 0.071, .01 ) + step( 27, old_height ) * vec3( 0.1, -0.06, 0 );
-            refrac = 1.2;
             normal = vec3( 0, 1.0, 0 );
 
             // work out precise t ( maybe precision errors when delta.y is near 0)
             t = ( old_height - origin.y ) / delta.y; 
-//            t += skip_t;
+//            t += skip_t;  // in all code we should always start inside the map so skip_t should never be required
             return true;
         }
 
@@ -159,6 +147,7 @@ float fresnel( float n2, vec3 normal, vec3 incident )
 const vec3 absorption_coeff  = vec3( 0.000005, 0.000015, 0.00027 )*15.0;
 const vec3 scattering_coeff = vec3( 0.00015, 0.00015, 0.00027 )*15.0;
 
+
 vec3 extinction( float dist ) {
     return      exp( -dist*( absorption_coeff + scattering_coeff ) );
 }
@@ -169,8 +158,7 @@ vec3 in_scatter( float dist, float cos_angle ) {
 
     float mie_g = 0.476;
     vec3 mie_scatter =  vec3( 0.0020, 0.0008, 0.0002 ) * ( 1.0 - mie_g )*( 1.0 - mie_g ) / ( 4.0 * 3.14159 * pow( ( 1.0 + mie_g*mie_g  - 2.0 * mie_g *cos_angle ), 1.5 ) ); 
-    float mie_coeff = 20.0 / (  absorption_coeff.x + scattering_coeff.x ) 
-                            * ( 1.0-exp( -dist*( scattering_coeff.x ) ) );
+    float mie_coeff = 20.0 / (  absorption_coeff.x + scattering_coeff.x ) * ( 1.0-exp( -dist*( scattering_coeff.x ) ) );
     return rayleigh_scatter*rayleigh_coeff+mie_scatter*mie_coeff;
  }
 
@@ -178,7 +166,6 @@ vec3 in_scatter( float dist, float cos_angle ) {
 void main()
 {
     vec3 sun_dir = normalize( vec3( 1.0, 1.10, 1.0 ));
-//    vec3 sun_dir = normalize( vec3( 1.0, sin( iTime )+1.02, 1.0 ));
 
     // calculate normalized screen pos with center at 0,0 extending width/height,1 
     vec2 screen_pos_2d = 2.0*(gl_FragCoord.xy/height) - vec2( width/height, 1.0 );
@@ -242,35 +229,21 @@ void main()
         if( cast_ray(origin, ray_dir, grid_t, diffuseCol2, norm2, refractive_index, type ) ) {
             // hit the scenery, if it is closer than the sphere this overrides
             if( grid_t < current_t ) {
-                if( type == 1.0 ) {
-                    // rethrow ray for holo
-                    float threshold = (0.6335-0.01)*60.0-(11.5);
-                    vec3 new_origin = (origin-vec3( 130.0+256.0, threshold, 191.0+256.0 ))*512.0;
-                    float mini_grid_t;
-                    if( cast_ray(new_origin, ray_dir*512, mini_grid_t, diffuseCol2, norm2, refractive_index, type ) ) {
-                        current_t = grid_t+ mini_grid_t/512.0;
-                        diffuseCol = diffuseCol2;
-                        diffuseCol.b = diffuseCol.b*2.0;
-                    } else {
-                        // nothing was hit. Carry on with previous direction
-                        current_t = grid_t *2.02;
-                        origin = origin + ray_dir * current_t;
-                        continue;
-                    }
-                } else {
-                    current_t = grid_t;
-                    diffuseCol = diffuseCol2;
-                }
+                current_t = grid_t;
+                diffuseCol = diffuseCol2;
                 norm = norm2;
                 pos = origin + ray_dir * current_t*0.9999;
                 reflectance = fresnel( refractive_index, norm, ray_dir);
             }
+        } else if( ray_dir.y < 0.0 && current_t == maximum_dist) {
+            current_t = ( -10.5-origin.y ) /  ray_dir.y;//   ground_plane_intersect( ray_dir, origin , -0.5 );
         }
 
         grid_t = ( -0.5-origin.y ) /  ray_dir.y;//   ground_plane_intersect( ray_dir, origin , -0.5 );
         if( ray_dir.y < 0.0 && grid_t <= current_t ) {
             pos = origin + ray_dir * grid_t*0.9999;
-            norm = vec3( 0.0, 1.0f, 0.0f ) + water_ripple( pos )*0.01;
+            // divide angle effect by distance to avoid grazing angle problems where the ripple would put the camera direction 'below' the water normal
+            norm = vec3( 0.0, 1.0f, 0.0f ) + water_ripple( pos )*0.03/grid_t;     
             norm = normalize(norm);
 
             reflectance = fresnel( 1.1, norm, ray_dir);
@@ -281,10 +254,10 @@ void main()
             if( cast_ray(pos, uw_dir*100, grid_t, diffuseCol2, norm2, refractive_index, type ) ) {
                 diffuseCol += diffuseCol2 * exp( -grid_t*40.0 );
             }
-         } 
+        } 
         new_ray_dir = reflect( normalize( ray_dir ), norm );
 
-        if( current_t >= maximum_dist ) {
+        if( current_t >= maximum_dist || bounce == 1 ) {
             final_color += in_scatter( current_t, dot( sun_dir,ray_dir) ) * contribution;
             break;
         }
