@@ -18,12 +18,18 @@ First compile release version
  xargo rustc --release --target i686-pc-windows-msvc -- --emit=obj
 ``` 
 
-Then use crinkler to compress
+Then use crinkler to compress ( the precise path to the windows sdk will depend on your version )
 ```
  ..\..\..\..\..\tools\crinkler /OUT:mini.exe /SUBSYSTEM:WINDOWS miniwin.o /ENTRY:mainCRTStartup "/LIBPATH:C:\Program Files (x86)\Windows Kits\10\Lib\10.0.18362.0\um\x86" gdi32.lib user32.lib opengl32.lib kernel32.lib winmm.lib
  ```
 
- To analyze the compiled assembly code run
+To analyze the compiled assembly code run
  ```
   xargo rustc --release --features fullscreen --target i686-pc-windows-msvc -- --emit=asm
 ```
+
+The glsl shader is compressed by the minifier using the command line
+```
+.\tools\shader_minifier.exe .\shader.glsl --preserve-externals --format none
+```
+This will create the the file ```shader_code.h``` from where you need to manually copy and paste the minified code into ```shader.rs```
