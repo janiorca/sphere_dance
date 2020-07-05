@@ -1,7 +1,10 @@
 #version 330 core
 const int num_spheres = 80;
-const float width = 1280;
-const float height = 720;
+const float width = 1920;
+const float height = 1080;
+//const float width = 1280;
+//const float height = 720;
+
 uniform vec4 sp[(num_spheres+2)*2];
 uniform sampler2D terrain;
 in vec4 gl_FragCoord;

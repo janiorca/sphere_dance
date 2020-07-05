@@ -49,12 +49,18 @@ const BindBufferIdx: u16 = 8;
 const BindTextureIdx: u16 = 22;
 const BindVertexArrayIdx: u16 = 26;
 const BufferDataIdx: u16 = 40;
+
+const CallListsIdx: u16 = 50;
+const RasterPos2fIdx : u16 = 51; 
+
 const CreateProgramIdx: u16 = 96;
 const ClearBufferfvIdx: u16 = 49;
 const CompileShaderIdx: u16 = 73;
 const CreateShaderIdx: u16 = 101;
 const DetachShaderIdx: u16 = 128;
 const DrawArraysIdx: u16 = 135;
+
+
 const RectiIdx: u16 = 136;
 const EnableVertexAttribArrayIdx: u16 = 157;
 const GenBuffersIdx: u16 = 175;
@@ -66,6 +72,8 @@ const GetShaderInfoLogIdx: u16 = 280;
 const GetShaderivIdx: u16 = 281;
 const GetUniformLocationIdx: u16 = 313;
 const LinkProgramIdx: u16 = 350;
+const ListBaseIdx: u16 = 370;
+
 const ShaderSourceIdx: u16 = 479;
 const TexImage2DIdx: u16 = 498;
 const TexParameteriIdx: u16 = 504;
@@ -117,6 +125,12 @@ static LOAD_DESC: &'static [(u16, &'static str)] = &[
     (ActiveTextureIdx, "glActiveTexture\0"),
     (TexImage2DIdx, "glTexImage2D\0"),
     (TexParameteriIdx, "glTexParameteri\0"),
+
+
+    (ListBaseIdx, "glListBase\0"),
+    (CallListsIdx, "glCallLists\0"),
+    (RasterPos2fIdx, "glRasterPos2f\0"),
+
 ];
 
 
@@ -248,6 +262,18 @@ pub unsafe fn TexParameteri(target: GLenum, pname: GLenum, param: GLint) -> () {
 
 pub unsafe fn ActiveTexture(texture: GLenum) -> () {
     mem::transmute::<_, extern "system" fn(GLenum) -> ()>(*GL_API.get_unchecked(ActiveTextureIdx as usize))(texture)
+}
+
+pub unsafe fn ListBase(index: GLuint) -> () {
+    mem::transmute::<_, extern "system" fn(GLuint) -> ()>(*GL_API.get_unchecked(ListBaseIdx as usize))(index)
+}
+
+pub unsafe fn CallLists(count: GLsizei, vtype: GLenum, string: *const CVoid ) -> () {
+    mem::transmute::<_, extern "system" fn(GLsizei, GLenum, *const CVoid ) -> ()>(*GL_API.get_unchecked(CallListsIdx as usize))(count, vtype, string)
+}
+
+pub unsafe fn RasterPos2f(x: GLfloat, y: GLfloat ) -> () {
+    mem::transmute::<_, extern "system" fn(GLfloat, GLfloat ) -> ()>(*GL_API.get_unchecked(RasterPos2fIdx as usize))(x,y)
 }
 
 pub fn init() {

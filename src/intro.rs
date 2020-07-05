@@ -8,18 +8,18 @@ use gl::CVoid;
 use core::mem::{size_of,transmute};
 use core::ops::{Add,Sub,Mul};
 
+// Floating point constants picked for compressibility
 pub const FP_0_01 :f32 = 0.0100097656f32;  //    0.01
 pub const FP_0_02 :f32 = 0.0200195313f32;     // 0.02f    0x3ca40000
 pub const FP_0_05 :f32 = 0.0500488281f32;  //
 pub const FP_0_20 : f32 = 0.2001953125f32;
-
 pub const FP_1_32  : f32 = 1.3203125000f32;     // 1.32f    0x3fa90000
 pub const FP_1_54 : f32 = 1.5390625000f32;
 
+// The dynamic part of the world is 80 spheres + camera and light
 pub const CAMERA_POS_IDX : usize = 80*2;
 pub const CAMERA_ROT_IDX : usize = 80*2+1;
 pub const CAMERA_CUT_INFO : usize = 80*2+2;
-
 pub const num_spheres : usize = 80;
 pub const sphere_extras : usize = 2;
 
@@ -46,7 +46,6 @@ fn smooth( pixels: &mut [ f32; 512*513*4 ]) {
     }
 }
 
-//static mut gpixels : [ u8; 512*512*4 ] = [ 0; 512*512*4 ];      // large ones are OK as long as they are 0. Otherwise crinkler chokes
 static mut src_terrain  : [ f32; 512*513*4 ] = [ 0.0; 512*513*4 ];
 static mut tex_buffer_id : gl::GLuint = 0;
 
@@ -60,10 +59,6 @@ static mut rotating_camera : bool  = false;
 
 static mut camera_velocity : [ f32; 4] = [ 0.0; 4];
 static mut camera_rot_speed : [ f32; 4] = [ 0.0; 4];
-
-static mut pivot_cam_centre : [ f32; 3] = [ 0.0; 3];
-static mut pivot_cam_dist : [ f32; 3] = [ 0.0; 3];
-static mut pivot_cam_angle : [ f32; 3] = [ 0.0; 3];
 
 static mut camera_mode : u32 = 0;
 static mut sphere_scale : f32 = 0.0;
@@ -81,8 +76,6 @@ pub fn set_pos( x: i32, y: i32, ctrl : bool ) {
         } else if rotating_camera {
             global_spheres[ CAMERA_ROT_IDX ][ 0 ] += ( y-old_y) as f32 / 1024.0;
             global_spheres[ CAMERA_ROT_IDX ][ 1 ] += ( x-old_x) as f32 / 1024.0;
-//            world_rot[ 2 ] += ( y-old_y) as f32 / 32.0;
-    
         }
         old_x = x;
         old_y = y;
@@ -284,9 +277,9 @@ static mut camera_speed : f32 = 1.0;
 fn update_world( now: f32 ) {
     
     unsafe{
-        delay_counter = *sequence.get_unchecked( play_pos*2+0 ) as i32*60;
-        let arg : u32 = ((*sequence.get_unchecked( play_pos*2+1 )) & 0x0fff ) as u32;
-        let mode : u16 = (*sequence.get_unchecked( play_pos*2+1 )) & 0xf000;
+        delay_counter = *SEQUENCE.get_unchecked( play_pos*2+0 ) as i32*60;
+        let arg : u32 = ((*SEQUENCE.get_unchecked( play_pos*2+1 )) & 0x0fff ) as u32;
+        let mode : u16 = (*SEQUENCE.get_unchecked( play_pos*2+1 )) & 0xf000;
 
         super::log!( "Camera", arg as f32, camera_mode as f32);
         if mode == MODE_CAM_PAN {
@@ -337,8 +330,7 @@ const MODE_CAM_PIVOT : u16 = 0x3000;
 const MODE_CAM_SPEED : u16 = 0x4000; 
 const MODE_SPHERE_SCALE : u16 = 0x5000; 
 
-// 38*2  ( save 5 bytes in compressed space by grouping by type to get more compressability)
-static sequence : &[u16] = &[
+static SEQUENCE : &[u16] = &[
 //     1200,   MODE_CAM_PAN | 1612,
 // Slow pan in
 28,   MODE_CAM_PAN | 786 ,

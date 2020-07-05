@@ -145,8 +145,8 @@ fn create_window( ) -> ( HWND, HDC ) {
             devMode.dmSize = core::mem::size_of::<DEVMODEA>() as u16;
             devMode.dmFields = winapi::um::wingdi::DM_BITSPERPEL | winapi::um::wingdi::DM_PELSWIDTH | winapi::um::wingdi::DM_PELSHEIGHT;
             devMode.dmBitsPerPel = 32;
-            devMode.dmPelsWidth  = 1280;
-            devMode.dmPelsHeight = 720;
+            devMode.dmPelsWidth  = 1920;
+            devMode.dmPelsHeight = 1080;
             if winapi::um::winuser::ChangeDisplaySettingsA(&mut devMode, winapi::um::winuser::CDS_FULLSCREEN)!= winapi::um::winuser::DISP_CHANGE_SUCCESSFUL {
                 return ( 0 as HWND, 0 as HDC ) ;
             }
@@ -179,7 +179,7 @@ fn create_window( ) -> ( HWND, HDC ) {
                 "MyClass\0".as_ptr() as *const i8,		                // class we registered.
                 "GLWIN\0".as_ptr() as *const i8,						// title
                 WS_OVERLAPPEDWINDOW | WS_VISIBLE,	// dwStyle
-                CW_USEDEFAULT, CW_USEDEFAULT, 1280, 720,	// size and position
+                CW_USEDEFAULT, CW_USEDEFAULT, 1920, 1080,	// size and position
                 0 as HWND,               	// hWndParent
                 0 as HMENU,					// hMenu
                 hinstance,                  // hInstance
@@ -229,6 +229,13 @@ fn create_window( ) -> ( HWND, HDC ) {
             wglMakeCurrent(h_dc, gl_context);
         }
 
+
+        // make the system font the device context's selected font  
+        winapi::um::wingdi::SelectObject (h_dc, winapi::um::wingdi::GetStockObject (winapi::um::wingdi::SYSTEM_FONT as i32)); 
+ 
+        // create the bitmap display lists  
+        winapi::um::wingdi::wglUseFontBitmapsA (h_dc, 0, 255, 1000); 
+ 
         gl::init();
         gl::wglSwapIntervalEXT(1);
         ( h_wnd, h_dc )
@@ -335,6 +342,21 @@ pub extern "system" fn mainCRTStartup() {
         }
 
         intro::frame( time );
+        unsafe{
+            gl::UseProgram(0);
+            gl::ListBase (1000); 
+            // now draw the characters in a string  
+            let mut xoffset = time-4.0;
+            if xoffset < 0.0 {
+                xoffset = -xoffset;
+            }
+            if xoffset < 1.0 {
+                xoffset = 1.0;
+            }
+            gl::RasterPos2f( 0.65+ xoffset*0.1, 0.1 );
+            gl::CallLists (15, gl::UNSIGNED_BYTE, "Code | janiorca\0".as_ptr() as *const gl::CVoid );
+        }
+
         unsafe{ SwapBuffers(hdc); }
         time += 1.0 / 60.0f32;  
         #[cfg(not(feature = "logger"))]

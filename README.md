@@ -1,13 +1,17 @@
-# sphere_dance
-Using rust to create a real 4K intro
+# ochre
+This is the full source code for [ochre](https://www.pouet.net/prod.php?which=85924) 4K intro. All code is pure Rust and glsl. Please do not use this code to learn how to write *good* Rust code but you can use it to learn how to write code that compiles very *small*.
 
-###For easier development
+![Intro image](screen.png) 
+
+A more detailed explanation about the different size optimizations can be found here
+
+## For easier development
 During development use following to enable loading shader from shader.glsl and have movable camera and logs
 ```
  xargo run --target i686-pc-windows-msvc --features logger
 ```
 
-###For the release version
+## For the release version
 
 First compile release version 
 ```
