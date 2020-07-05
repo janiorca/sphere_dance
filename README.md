@@ -3,7 +3,7 @@ This is the full source code for [ochre](https://www.pouet.net/prod.php?which=85
 
 ![Intro image](screen.png) 
 
-A more detailed explanation about the different size optimizations can be found here
+A more detailed explanation about the different size optimizations can be found [here](https://www.codeslow.com/2020/07/writing-winning-4k-intro-in-rust.html)
 
 ## For easier development
 During development use following to enable loading shader from shader.glsl and have movable camera and logs
