@@ -34,18 +34,15 @@ pub fn make_music( music: &mut [f32;44100*120]) {
 
     unsafe{ super::log!( "Make instruments!"); };
 
-    let mut i = 0;
-    loop{
+    for_until!(i < 7 {
         let mut scale = 1.0;
         // # Could combine into a single loop that doubles the scales when loop % 11 == 0. Possibly slightly shorter
         unsafe{
             loop{
-                let mut d = 0;
-                loop{
+                for_until!(d < 11 {
                     let frequency : f32 = frequencies.get_unchecked(i)/scale+6.0*vrng.next_f32();
                     let mut position : f32 = 0.0;
-                    let mut sample_no = 0;
-                    loop {
+                    for_until!(sample_no < 44100*9 {
                         let sample_duration : f32 = frequency / 44100.0f32;
                         position = position + sample_duration;
                         if position > 0.5 {
@@ -53,50 +50,32 @@ pub fn make_music( music: &mut [f32;44100*120]) {
                         }
                         let val = core::intrinsics::fabsf32(position)*4f32-1.0f32;
                         *sounds.get_unchecked_mut(i).get_unchecked_mut(sample_no) += val/55.0f32;
-                        sample_no += 1;
-                        if sample_no == 44100*9 {
-                            break;
-                        }
-                    }
-                    d += 1;
-                    if d == 11 {
-                        break;
-                    }
-                }
+                    });
+                });
                 scale *= 2.0f32;
                 if scale >= 32.0 {
                     break;
                 }
             }
         }
-        i += 1;
-        if i == 7 {
-            break;
-        }
-    }
+    });
 
-    unsafe{ 
+    unsafe{
         let mut mrng : random::Rng = random::Rng{seed: core::num::Wrapping(1161249)};
 
         let mut dst : usize = 0;
-        let mut s = 0;
-        loop {
-            let mut i = 0;
-            loop{
+        for_until!(s < 110 {
+            for_until!(i < 7 {
                 let nt = mrng.next_f32();
                 if nt > 0.9 {
                     play( music, dst, &sounds[i], 1.0 / 44100.0 );
                 }
                 i += 1;
-                if i == 7 { 
+                if i == 7 {
                     break;
                 }
-            }
+            });
             dst += 44100;
-            s += 1;
-            if s == 110 { 
-                break; 
-            }
-        }
+        });
     }
 }

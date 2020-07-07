@@ -6,6 +6,17 @@
 
 #[cfg(windows)] extern crate winapi;
 
+macro_rules! for_until {
+    ($i:ident < $threshold:expr $body:block) => {
+        let mut $i = 0;
+        loop {
+            $body
+            $i += 1;
+            if $i < $threshold { break }
+        }
+    }
+}
+
 mod shaders;
 mod math_util;
 mod gl;

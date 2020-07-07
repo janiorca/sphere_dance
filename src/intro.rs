@@ -28,21 +28,18 @@ static mut vertex_array_id : gl::GLuint = 0;
 
 static mut rng : random::Rng = random::Rng{seed: core::num::Wrapping(21431249)};
 
-static mut global_spheres: [ [ f32; 4]; (num_spheres+sphere_extras)*2] = [ [ 0f32; 4]; (num_spheres+sphere_extras)*2 ];  
+static mut global_spheres: [ [ f32; 4]; (num_spheres+sphere_extras)*2] = [ [ 0f32; 4]; (num_spheres+sphere_extras)*2 ];
 
 fn smooth( pixels: &mut [ f32; 512*513*4 ]) {
     unsafe{
-        let mut xy = 0;
-        loop{
+        for_until!(xy < 511*511 {
             let offset = xy*4;
             let mut val  = *pixels.get_unchecked( offset );
             val += pixels.get_unchecked( offset+4 );
             val += pixels.get_unchecked( offset+2048 );
             val += pixels.get_unchecked( offset+2052 );
             *pixels.get_unchecked_mut( offset ) = val / 4.0;
-            xy += 1;
-            if xy == 511*511 { break; }
-        }
+        })
     }
 }
 
@@ -219,39 +216,30 @@ pub fn prepare() -> () {
         let mut lumps : [[f32;4];50] = [[0f32;4];50];
         let num_lumps = 50;
 
-        let mut nl = 0;
-        loop{
+        for_until!(nl < num_lumps {
             // do not put the lumps too close to the edges to avoid ugly discontinuities
             set_r3( lumps.get_unchecked_mut(nl), &mut rng_terrain,0.8f32,0.8f32,0.8f32, -0.1 );
-            nl += 1;
-            if nl == num_lumps {break}
-        }
+        });
 
-        let  mut i = 0;
-        loop{
+        for_until!(i < 700_000 {
             set_r3( spheres.get_unchecked_mut(0), &mut rng_terrain,1f32,1f32,1f32, 0.0 );
             let x = spheres.get_unchecked_mut(0)[0];
             let z = spheres.get_unchecked_mut(0)[2];
 
             let mut charge = 0.0;
-            nl = 0;
-            loop{
+            for_until!(nl < num_lumps {
                 let lmp = lumps.get(nl).unwrap();
                 let dist = (x-lmp[0])*(x-lmp[0]) + (z-lmp[2])*(z-lmp[2]);
                 charge += lmp[1]*0.0001/dist;
-                nl += 1;
-                if nl == num_lumps { break;}
-            }
+            })
             *src_terrain.get_unchecked_mut( r3_pos ) += charge;
             if *src_terrain.get_unchecked( r3_pos ) > 1.0  {
                 *src_terrain.get_unchecked_mut( r3_pos ) = 1.0
             }
-            i += 1;
-            if i== 700_000 { break}
-        }
+        });
 
         // Smooth the terrain once to make it less 'craggy'
-        smooth( &mut src_terrain); 
+        smooth( &mut src_terrain);
     }
 
     let mut vertex_buffer_id : gl::GLuint = 0;
@@ -298,12 +286,12 @@ static mut cam_count : u32 = 1918;          // (1753 0 )
 
 fn setup_random_camera( ) {
     let seed : u32;
-    unsafe{ 
+    unsafe{
         cam_count += 1;
         setup_camera( cam_count, 0);
         camera_mode = 0;
 
-    }   
+    }
 }
 
 
