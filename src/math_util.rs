@@ -1,37 +1,33 @@
+use core::arch::asm;
 use core::mem;
+use core::mem::MaybeUninit;
 
 #[inline(always)]
-pub fn sin(a: f32) -> f32 {
+pub fn sin(i_chirho: f32) -> f32 {
+    let mut res_chirho: f32 = unsafe { MaybeUninit::uninit().assume_init() };
 
-    let mut res: f32 = unsafe { mem::uninitialized() };
-
-    unsafe { asm!(
-        r##"
-            flds $1;
-            fsin;
-            fstps $0;
-        "##
-        : "=*m"(&mut res as *mut f32)
-        : "*m"(&a as *const f32)
-    ) };
-
-    res
+    unsafe {
+        asm!(
+        "fld dword ptr [{}];",
+        "fsin;",
+        "fstp dword ptr [{}];",
+        in(reg) &i_chirho,
+        in(reg) &mut res_chirho)
+    };
+    res_chirho
 }
 
 #[inline(always)]
-pub fn cos(a: f32) -> f32 {
-    
-    let mut res: f32 = unsafe { mem::uninitialized() };
+pub fn cos(i_chirho: f32) -> f32 {
+    let mut res_chirho: f32 = unsafe { MaybeUninit::uninit().assume_init() };
 
-    unsafe { asm!(
-        r##"
-            flds $1;
-            fcos;
-            fstps $0;
-        "##
-        : "=*m"(&mut res as *mut f32)
-        : "*m"(&a as *const f32)
-    ) };
-
-    res
+    unsafe {
+        asm!(
+        "fld dword ptr [{}];",
+        "fcos;",
+        "fstp dword ptr [{}];",
+        in(reg) &i_chirho,
+        in(reg) &mut res_chirho)
+    };
+    res_chirho
 }
