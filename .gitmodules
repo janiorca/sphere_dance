@@ -1,0 +1,3 @@
+[submodule "tools/Crinkler"]
+	path = tools/Crinkler
+	url = https://github.com/runestubbe/Crinkler
