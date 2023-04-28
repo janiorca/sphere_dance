@@ -1,4 +1,3 @@
-#![feature(asm)]
 #![no_main]
 #![no_std]
 #![windows_subsystem = "windows"]
@@ -7,14 +6,13 @@
 #[cfg(windows)] extern crate winapi;
 
 mod shaders;
-mod math_util;
 mod gl;
-pub mod gl_util;
 pub mod util;
 mod intro;
 mod music;
 mod random;
 
+#[cfg(feature = "logger")]
 use core::mem::MaybeUninit;
 use core::panic::PanicInfo;
 
@@ -26,7 +24,6 @@ use winapi::um::wingdi::{
     wglCreateContext,
     SetPixelFormat,
 
-    DEVMODEA,
     PFD_TYPE_RGBA,
     PFD_DOUBLEBUFFER,
     PFD_SUPPORT_OPENGL,
@@ -34,8 +31,12 @@ use winapi::um::wingdi::{
     PIXELFORMATDESCRIPTOR
 };
 
+#[cfg(feature = "fullscreen")]
+use winapi::um::wingdi::{
+    DEVMODEA,
+};
+
 use winapi::shared::minwindef::{
-    HINSTANCE,
     LRESULT,
     LPARAM,
     LPVOID,
@@ -43,85 +44,52 @@ use winapi::shared::minwindef::{
     UINT,
 };
 
+#[cfg(feature = "fullscreen")]
+use winapi::shared::minwindef::{
+    HINSTANCE,
+};
+
 use winapi::shared::windef::{
     HDC,
     HGLRC,
     HWND,
     HMENU,
-    HICON,
-    HBRUSH,
 };
 
+#[cfg(not(feature = "fullscreen"))]
 use winapi::um::libloaderapi::GetModuleHandleA;
 
-use winapi::um::winuser::{
-    CreateWindowExA,
-    DefWindowProcA,
-    DispatchMessageA,
-    GetDC,
-    PostQuitMessage,
-    RegisterClassA,
-    TranslateMessage,
-    PeekMessageA,
-    MessageBoxA,
+use winapi::um::winuser::{CreateWindowExA, DefWindowProcA, GetDC, PostQuitMessage};
 
+#[cfg(not(feature = "fullscreen"))]
+use winapi::um::winuser::{RegisterClassA, WNDCLASSA, CS_OWNDC, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, WS_OVERLAPPEDWINDOW};
+
+#[cfg(feature = "logger")]
+use winapi::um::winuser::{
+    PeekMessageA,
+    DispatchMessageA,
+    TranslateMessage,
+    PM_REMOVE,
     MB_ICONERROR,
-    MSG,
-    WNDCLASSA,
-    CS_OWNDC,
-    CS_HREDRAW,
-    CS_VREDRAW,
-    CW_USEDEFAULT,
-    PM_REMOVE, 
-    WS_OVERLAPPEDWINDOW,
+    MessageBoxA
+};
+
+#[cfg(feature = "fullscreen")]
+use winapi::um::winuser::{
     WS_MAXIMIZE,
     WS_POPUP,
+};
+
+use winapi::um::winuser::{
     WS_VISIBLE,
 };
 
-
-#[cfg(not(feature = "logger"))]
 pub unsafe extern "system" fn window_proc(hwnd: HWND,
     msg: UINT, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
 
     match msg {
         winapi::um::winuser::WM_DESTROY => {
             PostQuitMessage(0);
-        }
-        _ => { return DefWindowProcA(hwnd, msg, w_param, l_param); }
-    }
-    return 0;
-}
-
-#[cfg(feature = "logger")]
-pub unsafe extern "system" fn window_proc(hwnd: HWND,
-    msg: UINT, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
-
-    match msg {
-        winapi::um::winuser::WM_DESTROY => {
-            PostQuitMessage(0);
-        },
-        winapi::um::winuser::WM_MOUSEMOVE => {
-            let x_pos = ( ( l_param as u32 ) & 0x0000ffff) as i32;
-            let y_pos = ((( l_param as u32 ) & 0xffff0000)>>16) as i32;
-            let ctrl : bool = ( w_param & winapi::um::winuser::MK_CONTROL ) != 0;
-            intro::set_pos(x_pos, y_pos, ctrl);
-        },
-        winapi::um::winuser::WM_LBUTTONDOWN => {
-            let x_pos = ( ( l_param as u32 ) & 0x0000ffff) as i32;
-            let y_pos = ((( l_param as u32 ) & 0xffff0000)>>16) as i32;
-            intro::lbutton_down(x_pos,y_pos);
-        },
-        winapi::um::winuser::WM_LBUTTONUP => {
-            intro::lbutton_up();
-        }
-        winapi::um::winuser::WM_RBUTTONDOWN => {
-            let x_pos = ( ( l_param as u32 ) & 0x0000ffff) as i32;
-            let y_pos = ((( l_param as u32 ) & 0xffff0000)>>16) as i32;
-            intro::rbutton_down(x_pos,y_pos);
-        },
-        winapi::um::winuser::WM_RBUTTONUP => {
-            intro::rbutton_up();
         }
         _ => { return DefWindowProcA(hwnd, msg, w_param, l_param); }
     }
@@ -141,13 +109,13 @@ fn create_window( ) -> ( HWND, HDC ) {
 
         #[cfg(feature = "fullscreen")]
         {
-            let mut devMode : DEVMODEA = core::mem::zeroed();
-            devMode.dmSize = core::mem::size_of::<DEVMODEA>() as u16;
-            devMode.dmFields = winapi::um::wingdi::DM_BITSPERPEL | winapi::um::wingdi::DM_PELSWIDTH | winapi::um::wingdi::DM_PELSHEIGHT;
-            devMode.dmBitsPerPel = 32;
-            devMode.dmPelsWidth  = 1920;
-            devMode.dmPelsHeight = 1080;
-            if winapi::um::winuser::ChangeDisplaySettingsA(&mut devMode, winapi::um::winuser::CDS_FULLSCREEN)!= winapi::um::winuser::DISP_CHANGE_SUCCESSFUL {
+            let mut dev_mode: DEVMODEA = core::mem::zeroed();
+            dev_mode.dmSize = core::mem::size_of::<DEVMODEA>() as u16;
+            dev_mode.dmFields = winapi::um::wingdi::DM_BITSPERPEL | winapi::um::wingdi::DM_PELSWIDTH | winapi::um::wingdi::DM_PELSHEIGHT;
+            dev_mode.dmBitsPerPel = 32;
+            dev_mode.dmPelsWidth  = 1920;
+            dev_mode.dmPelsHeight = 1080;
+            if winapi::um::winuser::ChangeDisplaySettingsA(&mut dev_mode, winapi::um::winuser::CDS_FULLSCREEN)!= winapi::um::winuser::DISP_CHANGE_SUCCESSFUL {
                 return ( 0 as HWND, 0 as HDC ) ;
             }
             winapi::um::winuser::ShowCursor( 0 );            
@@ -247,7 +215,8 @@ fn create_window( ) -> ( HWND, HDC ) {
 #[cfg(feature = "logger")]
 fn handle_message( _window : HWND ) -> bool {
     unsafe {
-       let mut msg : MSG = MaybeUninit::uninit().assume_init();
+       let msg = MaybeUninit::uninit();
+       let mut msg = msg.assume_init();
         loop{
             if PeekMessageA( &mut msg,0 as HWND,0,0,PM_REMOVE) == 0 {
                 return true;
@@ -286,7 +255,7 @@ pub unsafe extern fn memcpy(dest: *mut u8, src: *const u8, n: usize) -> *mut u8 
     dest
 }
 
-static waveFormat : winapi::shared::mmreg::WAVEFORMATEX = winapi::shared::mmreg::WAVEFORMATEX{ 
+static WAVE_FORMAT: winapi::shared::mmreg::WAVEFORMATEX = winapi::shared::mmreg::WAVEFORMATEX{
     wFormatTag : winapi::shared::mmreg::WAVE_FORMAT_IEEE_FLOAT, 
     nChannels : 1,
     nSamplesPerSec : 44100,
@@ -296,7 +265,7 @@ static waveFormat : winapi::shared::mmreg::WAVEFORMATEX = winapi::shared::mmreg:
     cbSize:0
  };
 
- static mut waveHeader : winapi::um::mmsystem::WAVEHDR = winapi::um::mmsystem::WAVEHDR{
+ static mut WAVE_HEADER: winapi::um::mmsystem::WAVEHDR = winapi::um::mmsystem::WAVEHDR{
     lpData: 0 as *mut i8,
     dwBufferLength: 44100*4*120,
     dwBytesRecorded: 0,
@@ -307,32 +276,32 @@ static waveFormat : winapi::shared::mmreg::WAVEFORMATEX = winapi::shared::mmreg:
     reserved: 0,
 };
 
-static mut music_data : [f32;44100*120] = [ 0.0;44100*120];
+static mut MUSIC_DATA: [f32;44100*120] = [ 0.0;44100*120];
 #[no_mangle]
 pub extern "system" fn mainCRTStartup() {
-    let ( window, hdc ) = create_window(  );
+    let ( _window, hdc ) = create_window(  );
 
-    unsafe{ log!("Prepare\n"); };
-    intro::prepare();
+    log!("Initializing\n");
+    intro::init();
 
     let mut time : f32 = 0.0;
 
     unsafe{
-        music::make_music( &mut music_data );
-        waveHeader.lpData = music_data.as_mut_ptr() as *mut i8;
-        let mut hWaveOut : winapi::um::mmsystem::HWAVEOUT = 0 as winapi::um::mmsystem::HWAVEOUT;
-        winapi::um::mmeapi::waveOutOpen( &mut hWaveOut, winapi::um::mmsystem::WAVE_MAPPER, &waveFormat, 0, 0, winapi::um::mmsystem::CALLBACK_NULL);
-        winapi::um::mmeapi::waveOutPrepareHeader(hWaveOut, &mut waveHeader, core::mem::size_of::<winapi::um::mmsystem::WAVEHDR>() as u32 );
-        winapi::um::mmeapi::waveOutWrite(hWaveOut, &mut waveHeader, core::mem::size_of::<winapi::um::mmsystem::WAVEHDR>() as u32 );
+        music::make_music( &mut MUSIC_DATA);
+        WAVE_HEADER.lpData = MUSIC_DATA.as_mut_ptr() as *mut i8;
+        let mut h_wave_out: winapi::um::mmsystem::HWAVEOUT = 0 as winapi::um::mmsystem::HWAVEOUT;
+        winapi::um::mmeapi::waveOutOpen(&mut h_wave_out, winapi::um::mmsystem::WAVE_MAPPER, &WAVE_FORMAT, 0, 0, winapi::um::mmsystem::CALLBACK_NULL);
+        winapi::um::mmeapi::waveOutPrepareHeader(h_wave_out, &mut WAVE_HEADER, core::mem::size_of::<winapi::um::mmsystem::WAVEHDR>() as u32 );
+        winapi::um::mmeapi::waveOutWrite(h_wave_out, &mut WAVE_HEADER, core::mem::size_of::<winapi::um::mmsystem::WAVEHDR>() as u32 );
     }
 
-    unsafe{ log!("Entering loop\n"); };
+    log!("Entering loop\n");
     loop {
         #[cfg(feature = "logger")]
         {
-            if !handle_message( window ) {
+            if !handle_message( _window ) {
                 break;
-            }        
+            }
         }
 
         unsafe{
@@ -341,24 +310,10 @@ pub extern "system" fn mainCRTStartup() {
             }
         }
 
-        intro::frame( time );
-        unsafe{
-            gl::UseProgram(0);
-            gl::ListBase (1000); 
-            // now draw the characters in a string  
-            let mut xoffset = time-4.0;
-            if xoffset < 0.0 {
-                xoffset = -xoffset;
-            }
-            if xoffset < 1.0 {
-                xoffset = 1.0;
-            }
-            gl::RasterPos2f( 0.65+ xoffset*0.1, 0.1 );
-            gl::CallLists (15, gl::UNSIGNED_BYTE, "Code | janiorca\0".as_ptr() as *const gl::CVoid );
-        }
+        intro::tick( time );
 
         unsafe{ SwapBuffers(hdc); }
-        time += 1.0 / 60.0f32;  
+        time += 1.0 / 60.0f32;
         #[cfg(not(feature = "logger"))]
         if time > 120.0 {
             break;

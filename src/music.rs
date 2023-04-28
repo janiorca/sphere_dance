@@ -1,7 +1,7 @@
 use super::random;
 
-static mut sounds : [[f32;44100*9];7] = [[0.0;44100*9];7];
-static frequencies : [ f32; 7] = [
+static mut SOUNDS: [[f32;44100*9];7] = [[0.0;44100*9];7];
+static FREQUENCIES: [ f32; 7] = [
     349.0,     //F4   
     415.0,     //Ab4            1.189
     523.0,     //C5             1.26
@@ -32,7 +32,7 @@ fn play( dst: &mut [f32;44100*120], dst_offset : usize, signal : &[f32;44100*9],
 pub fn make_music( music: &mut [f32;44100*120]) {
     let mut vrng = random::Rng::new_unseeded();
 
-    unsafe{ super::log!( "Make instruments!"); };
+    super::log!( "Make instruments!");
 
     let mut i = 0;
     loop{
@@ -42,7 +42,7 @@ pub fn make_music( music: &mut [f32;44100*120]) {
             loop{
                 let mut d = 0;
                 loop{
-                    let frequency : f32 = frequencies.get_unchecked(i)/scale+6.0*vrng.next_f32();
+                    let frequency : f32 = FREQUENCIES.get_unchecked(i)/scale+6.0*vrng.next_f32();
                     let mut position : f32 = 0.0;
                     let mut sample_no = 0;
                     loop {
@@ -52,7 +52,7 @@ pub fn make_music( music: &mut [f32;44100*120]) {
                             position -= 1.0f32;
                         }
                         let val = core::intrinsics::fabsf32(position)*4f32-1.0f32;
-                        *sounds.get_unchecked_mut(i).get_unchecked_mut(sample_no) += val/55.0f32;
+                        *SOUNDS.get_unchecked_mut(i).get_unchecked_mut(sample_no) += val/55.0f32;
                         sample_no += 1;
                         if sample_no == 44100*9 {
                             break;
@@ -85,7 +85,7 @@ pub fn make_music( music: &mut [f32;44100*120]) {
             loop{
                 let nt = mrng.next_f32();
                 if nt > 0.9 {
-                    play( music, dst, &sounds[i], 1.0 / 44100.0 );
+                    play(music, dst, &SOUNDS[i], 1.0 / 44100.0 );
                 }
                 i += 1;
                 if i == 7 { 

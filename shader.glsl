@@ -1,11 +1,11 @@
 #version 330 core
-const int num_spheres = 80;
+const int NUM_SPHERES = 80;
 const float width = 1920;
 const float height = 1080;
 //const float width = 1280;
 //const float height = 720;
 
-uniform vec4 sp[(num_spheres+2)*2];
+uniform vec4 sp[(NUM_SPHERES+2)*2];
 uniform sampler2D terrain;
 in vec4 gl_FragCoord;
 out vec4 fragColor;
@@ -209,7 +209,7 @@ void main()
         float reflectance = 0.0;
         float current_t = maximum_dist;
 
-        for( int idx=0; idx < num_spheres; idx++ ) {
+        for( int idx=0; idx < NUM_SPHERES; idx++ ) {
             float n_t;          // For some reason I cant pass current_t as out var into the func. Somehow the compiler seems to optimize out
                                 // the preceeding assignment if I do
             if( w_intersect_sphere( ray_dir, origin, sp[idx*2].xyz, sp[idx*2].w, n_t) ) {
@@ -270,7 +270,7 @@ void main()
         bool in_shade = cast_ray( pos, sun_dir, grid_t, diffuseCol2, norm2, refractive_index, type );
         if( !in_shade ) 
         {
-            for( int idx=0; idx < num_spheres; idx++ ) 
+            for( int idx=0; idx < NUM_SPHERES; idx++ )
             {
                 if( w_intersect_sphere( sun_dir, pos, sp[idx*2].xyz, sp[idx*2].w, grid_t ) )  {
                     in_shade = true;

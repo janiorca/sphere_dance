@@ -1,25 +1,26 @@
+#[cfg(feature = "logger")]
 use winapi::um::winnt::{
     FILE_ATTRIBUTE_NORMAL,
     FILE_APPEND_DATA,
     GENERIC_READ,
-    GENERIC_WRITE
 };
 
-use winapi::um::fileapi::{
-    OPEN_ALWAYS,
-    OPEN_EXISTING,
-    CREATE_ALWAYS,
-    WriteFile,
-    ReadFile,
-    CreateFileA,
+#[cfg(feature = "logger")]
+use winapi::um::{
+    fileapi::{
+        OPEN_ALWAYS,
+        OPEN_EXISTING,
+        WriteFile,
+        ReadFile,
+        CreateFileA,
+    },
+    handleapi::CloseHandle
 };
-
-use winapi::um::handleapi::CloseHandle;
 
 #[cfg(feature = "logger")]
 #[macro_export]
 macro_rules! log {
-    ($text:expr) => { crate::util::log0($text); };
+    ($text:expr) => { unsafe { crate::util::log0($text); } };
     ($text:expr, $val:expr) => { crate::util::log1($text,$val); };
     ($text:expr, $val1:expr, $val2:expr) => { crate::util::log2($text,$val1,$val2); };
     ($text:expr, $val1:expr, $val2:expr, $val3:expr) => { crate::util::log3($text,$val1,$val2,$val3); };
@@ -39,12 +40,12 @@ pub unsafe fn log0( message : &str ) {
     let name = "dbg_out.txt\0";
     let mut out = 0;
 
-    let hFile = CreateFileA( name.as_ptr() as *const i8, FILE_APPEND_DATA, 0, 
-                0 as *mut winapi::um::minwinbase::SECURITY_ATTRIBUTES, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, 
-                0 as *mut winapi::ctypes::c_void );
-    WriteFile( hFile, message.as_ptr() as *const winapi::ctypes::c_void, message.len() as u32, &mut out, 
-                0 as *mut winapi::um::minwinbase::OVERLAPPED );
-    CloseHandle( hFile );
+    let h_file = CreateFileA(name.as_ptr() as *const i8, FILE_APPEND_DATA, 0,
+                             0 as *mut winapi::um::minwinbase::SECURITY_ATTRIBUTES, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL,
+                             0 as *mut winapi::ctypes::c_void );
+    WriteFile(h_file, message.as_ptr() as *const winapi::ctypes::c_void, message.len() as u32, &mut out,
+              0 as *mut winapi::um::minwinbase::OVERLAPPED );
+    CloseHandle(h_file);
 }
 
 #[cfg(feature = "logger")]
@@ -74,50 +75,49 @@ pub fn f32_to_text( dest: &mut[u8], value: f32, comma: bool ) -> usize {
 }
 
 #[cfg(feature = "logger")]
-pub unsafe fn log1( message : &str, value: f32 ) {
+pub unsafe fn log1( _message : &str, value: f32 ) {
     let mut buffer : [ u8; 256 ] = [ 0;256 ];
     let mut length : usize = 0;
     length += f32_to_text( &mut buffer, value, false );
     buffer[ length ] = '\n' as u8;
-    let mut buffer_text_len = get_c_string_length(&buffer);
+    let buffer_text_len = get_c_string_length(&buffer);
     log0( core::str::from_utf8_unchecked(&buffer[ 0 .. buffer_text_len ]));
 }
 
 #[cfg(feature = "logger")]
-pub unsafe fn log2( message : &str, value1: f32, value2: f32 ) {
+pub unsafe fn log2( _message : &str, value1: f32, value2: f32 ) {
     let mut buffer : [ u8; 256 ] = [ 0;256 ];
     let mut length : usize = 0;
     length += f32_to_text( &mut buffer, value1, true );
     length += f32_to_text( &mut buffer[length..], value2, false );
     buffer[ length ] = '\n' as u8;
-    let mut buffer_text_len = get_c_string_length(&buffer);
+    let buffer_text_len = get_c_string_length(&buffer);
     log0( core::str::from_utf8_unchecked(&buffer[ 0 .. buffer_text_len ]));
 }
 
 #[cfg(feature = "logger")]
-pub unsafe fn log3( message : &str, value1: f32, value2: f32, value3: f32 ) {
+pub unsafe fn log3( _message : &str, value1: f32, value2: f32, value3: f32 ) {
     let mut buffer : [ u8; 256 ] = [ 0;256 ];
     let mut length : usize = 0;
     length += f32_to_text( &mut buffer, value1, true );
     length += f32_to_text( &mut buffer[length..], value2, true );
     length += f32_to_text( &mut buffer[length..], value3, false );
     buffer[ length ] = '\n' as u8;
-    let mut buffer_text_len = get_c_string_length(&buffer);
+    let buffer_text_len = get_c_string_length(&buffer);
     log0( core::str::from_utf8_unchecked(&buffer[ 0 .. buffer_text_len ]));
 }
 
 #[cfg(feature = "logger")]
 pub unsafe fn read_file( file_name : &str, dst : &mut [u8] ) {
-    let name = "dbg_out.txt\0";
     let mut out = 0;
 
     log!( "Creating file for reading\n");
-    let hFile = CreateFileA( file_name.as_ptr() as *const i8, GENERIC_READ, 0, 
-                0 as *mut winapi::um::minwinbase::SECURITY_ATTRIBUTES, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 
-                0 as *mut winapi::ctypes::c_void );
+    let h_file = CreateFileA(file_name.as_ptr() as *const i8, GENERIC_READ, 0,
+                             0 as *mut winapi::um::minwinbase::SECURITY_ATTRIBUTES, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
+                             0 as *mut winapi::ctypes::c_void );
     log!( "Reading...\n");
-    ReadFile( hFile, dst.as_mut_ptr() as *mut winapi::ctypes::c_void, dst.len() as u32, &mut out, 
-                0 as *mut winapi::um::minwinbase::OVERLAPPED );
+    ReadFile(h_file, dst.as_mut_ptr() as *mut winapi::ctypes::c_void, dst.len() as u32, &mut out,
+             0 as *mut winapi::um::minwinbase::OVERLAPPED );
     log!( "Close handle...\n");
-    CloseHandle( hFile );
+    CloseHandle(h_file);
 }

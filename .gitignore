@@ -1,3 +1,7 @@
 .idea
 /target
 **/*.rs.bk
+
+# Default files. Should be unlisted
+mini.exe
+dbg_out.txt
