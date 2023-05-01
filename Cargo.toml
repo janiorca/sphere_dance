@@ -1,7 +1,7 @@
 [package]
 name = "miniwin"
 version = "0.1.0"
-authors = ["SLIMPANDA\\janio <jani.peltonen@gmail.com>"]
+authors = ["Danilo Guanabara <danilo@sensorial.systems>", "SLIMPANDA\\janio <jani.peltonen@gmail.com>"]
 edition = "2018"
 
 [features]
@@ -13,8 +13,6 @@ lto = true
 codegen-units = 1    # should be 1, test diff
 opt-level = "z"       # is this highest  
 panic = 'abort'
-# rustflags = ["-C", "target-cpu=native", "--emit=obj"]       #??? to emit the obj files not sure about first two
-# rustflags = ["--emit=obj"]       #??? to emit the obj files not sure about first two
 
 [profile.dev]
 lto = true 
@@ -23,5 +21,4 @@ panic = "abort"
 
 [dependencies]
 winapi = { version = "0.3.8", features = ["winuser", "libloaderapi", "processthreadsapi", "fileapi", "handleapi", "mmreg", "mmsystem", "mmeapi" ] }
-#winapi = { version = "0.3.8", features = ["winuser", "libloaderapi", "processthreadsapi" ] }
 
