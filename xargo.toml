@@ -1,5 +1,2 @@
-# [dependencies]
-# std = {default-features=false,features=["panic_immediate_abort"]}
-
 [dependencies]
 std = {features=["panic_immediate_abort"]}
