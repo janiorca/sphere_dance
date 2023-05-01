@@ -1,3 +1,6 @@
+mod template;
+
+pub use template::*;
 use crate::audio::Audio;
 use crate::log;
 use crate::visual::Visual;
@@ -47,6 +50,7 @@ macro_rules! set_intro {
     ($i:ty) => {
         #[no_mangle]
         pub extern "system" fn mainCRTStartup() {
+            use $crate::Intro;
             let mut intro = <$i>::new();
             intro.run();
         }
