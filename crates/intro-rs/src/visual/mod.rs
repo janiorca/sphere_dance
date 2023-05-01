@@ -228,7 +228,7 @@ impl Visual {
         Self { _window, hdc }
     }
 
-    pub fn tick(&self, time: f32) -> Option<Command> {
+    pub fn draw(&self, _time: f32) -> Option<Command> {
         #[cfg(feature = "logger")]
         {
             if !handle_message( _window ) {
@@ -236,8 +236,10 @@ impl Visual {
             }
         }
 
-
-        crate::intro::tick( time );
+        unsafe {
+            gl::ClearColor(1.0, 0.0, 0.0, 1.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT);
+        }
 
         unsafe{ SwapBuffers(self.hdc); }
 

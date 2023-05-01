@@ -1,12 +1,12 @@
 [package]
-name = "miniwin"
+name = "namekusei"
 version = "0.1.0"
-authors = ["Danilo Guanabara <danilo@sensorial.systems>", "SLIMPANDA\\janio <jani.peltonen@gmail.com>"]
-edition = "2018"
+authors = ["Danilo Guanabara <danilo@sensorial.systems>"]
+edition = "2021"
 
 [features]
-logger = []
-fullscreen = []
+logger = [ "intro-rs/logger" ]
+fullscreen = [ "intro-rs/fullscreen" ]
 
 [profile.release]
 lto = true 
@@ -20,5 +20,4 @@ opt-level = 0
 panic = "abort"
 
 [dependencies]
-winapi = { version = "0.3.8", features = ["winuser", "libloaderapi", "processthreadsapi", "fileapi", "handleapi", "mmreg", "mmsystem", "mmeapi" ] }
-
+intro-rs = { path = "crates/intro-rs" }

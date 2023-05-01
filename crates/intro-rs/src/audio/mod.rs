@@ -43,7 +43,7 @@ impl Audio {
 }
 
 
-pub fn make_music( music: &mut [f32;44100*120]) {
+pub fn make_music( music: &mut [f32]) {
     for (index, sample) in music.iter_mut().enumerate() {
         *sample = (index % 220) as f32 / 440.0f32 * 0.01f32;
     }

@@ -1,0 +1,23 @@
+[package]
+name = "intro-rs"
+version = "0.1.0"
+edition = "2021"
+authors = ["Danilo Guanabara <danilo@sensorial.systems>", "SLIMPANDA\\janio <jani.peltonen@gmail.com>"]
+
+[features]
+logger = []
+fullscreen = []
+
+[profile.release]
+lto = true
+codegen-units = 1    # should be 1, test diff
+opt-level = "z"       # is this highest
+panic = 'abort'
+
+[profile.dev]
+lto = true
+opt-level = 0
+panic = "abort"
+
+[dependencies]
+winapi = { version = "0.3.8", features = ["winuser", "libloaderapi", "processthreadsapi", "fileapi", "handleapi", "mmreg", "mmsystem", "mmeapi" ] }
