@@ -14,12 +14,12 @@ pub trait Intro {
         self.audio().play();
         loop {
             let time = *self.time();
-            if let Some(Command::Exit) = self.visual().draw(time) {
+            if let Some(Command::Exit) = self.visual().manage(time) {
                 break;
             }
             *self.time() += 1.0 / 60.0f32;
 
-            unsafe{
+            unsafe {
                 if winapi::um::winuser::GetAsyncKeyState(winapi::um::winuser::VK_ESCAPE) != 0 {
                     break;
                 }
@@ -38,8 +38,8 @@ pub trait Intro {
     }
 
     fn time(&mut self) -> &mut f32;
-    fn audio(&self) -> &Audio;
-    fn visual(&self) -> &Visual;
+    fn audio(&self) -> &dyn Audio;
+    fn visual(&self) -> &dyn Visual;
 }
 
 #[macro_export]

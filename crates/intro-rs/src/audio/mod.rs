@@ -19,32 +19,18 @@ static mut WAVE_HEADER: winapi::um::mmsystem::WAVEHDR = winapi::um::mmsystem::WA
     reserved: 0,
 };
 
-static mut MUSIC_DATA: [f32;44100*120] = [ 0.0;44100*120];
+pub trait Audio {
+    fn new() -> Self where Self: Sized;
 
-pub struct Audio;
+    fn data_mut(&self) -> &mut [f32];
 
-impl Audio {
-    pub fn new() -> Self {
+    fn play(&self) {
         unsafe {
-            make_music(&mut MUSIC_DATA);
-            WAVE_HEADER.lpData = MUSIC_DATA.as_mut_ptr() as *mut i8;
-        }
-        Self
-    }
-
-    pub fn play(&self) {
-        unsafe {
+            WAVE_HEADER.lpData = self.data_mut().as_mut_ptr() as *mut i8;
             let mut h_wave_out: winapi::um::mmsystem::HWAVEOUT = 0 as winapi::um::mmsystem::HWAVEOUT;
             winapi::um::mmeapi::waveOutOpen(&mut h_wave_out, winapi::um::mmsystem::WAVE_MAPPER, &WAVE_FORMAT, 0, 0, winapi::um::mmsystem::CALLBACK_NULL);
             winapi::um::mmeapi::waveOutPrepareHeader(h_wave_out, &mut WAVE_HEADER, core::mem::size_of::<winapi::um::mmsystem::WAVEHDR>() as u32);
             winapi::um::mmeapi::waveOutWrite(h_wave_out, &mut WAVE_HEADER, core::mem::size_of::<winapi::um::mmsystem::WAVEHDR>() as u32);
         }
-    }
-}
-
-
-pub fn make_music( music: &mut [f32]) {
-    for (index, sample) in music.iter_mut().enumerate() {
-        *sample = (index % 220) as f32 / 440.0f32 * 0.01f32;
     }
 }

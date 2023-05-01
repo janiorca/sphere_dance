@@ -2,6 +2,10 @@
 #![feature(core_intrinsics)]
 
 pub mod util;
-pub mod intro;
-pub mod audio;
-pub mod visual;
+mod intro;
+mod audio;
+mod visual;
+
+pub use intro::*;
+pub use audio::*;
+pub use visual::*;
