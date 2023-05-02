@@ -1,3 +1,3 @@
 BASEDIR=$(dirname "$0")
 $BASEDIR/package.sh
-$BASEDIR/../target/release/mini.exe
+$BASEDIR/../target/release/namekusei.exe

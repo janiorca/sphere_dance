@@ -1,5 +1,7 @@
-use intro_rs::gl;
 use intro_rs::Window;
+
+pub mod functions;
+use functions::*;
 
 pub struct Visual {
     window: Window
@@ -7,6 +9,7 @@ pub struct Visual {
 
 impl intro_rs::Visual for Visual {
     fn new() -> Self where Self: Sized {
+        initialize_functions();
         let window = Window::new();
         Self { window }
     }
@@ -15,10 +18,8 @@ impl intro_rs::Visual for Visual {
         &self.window
     }
 
-    fn draw(&self, _time: f32) {
-        unsafe {
-            gl::ClearColor(1.0, 0.0, 0.0, 1.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT);
-        }
+    fn draw(&self, time: f32) {
+        glClearColor(time, 0.0, 0.0, 1.0);
+        glClear(gl::COLOR_BUFFER_BIT);
     }
 }

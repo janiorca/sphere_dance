@@ -191,8 +191,8 @@ fn create_window( ) -> ( HWND, HDC ) {
         // create the bitmap display lists
         winapi::um::wingdi::wglUseFontBitmapsA (h_dc, 0, 255, 1000);
 
-        gl::init();
-        gl::wglSwapIntervalEXT(1);
+        gl::internal::initialize_functions();
+        gl::internal::wglSwapIntervalEXT(1);
         ( h_wnd, h_dc )
     }
 }
@@ -231,7 +231,7 @@ impl Window {
     pub fn manage(&self) -> Option<Command> {
         #[cfg(feature = "logger")]
         {
-            if !handle_message( _window ) {
+            if !handle_message(_window) {
                 return Some(Command::Exit);
             }
         }
